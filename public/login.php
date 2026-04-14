@@ -32,13 +32,32 @@ $flash = getFlash();
     <link rel="stylesheet" href="/public/assets/css/styles.css">
 </head>
 <body class="login-page">
-<form method="post" class="card login-card">
-    <h1>SmartRent Manager</h1>
-    <p>Finance Manager Login</p>
-    <?php if ($flash): ?><div class="alert error"><?= h($flash['message']) ?></div><?php endif; ?>
-    <label>Email <input type="email" name="email" required></label>
-    <label>Password <input type="password" name="password" required></label>
-    <button type="submit">Sign In</button>
-</form>
+<main class="login-layout">
+    <section class="login-brand-panel" aria-hidden="true">
+        <div class="brand-content">
+            <p class="brand-eyebrow">SmartRent Manager</p>
+            <h1>Property Insights, Simplified.</h1>
+            <p>Track collections, monitor portfolio performance, and stay ahead with a finance-first dashboard.</p>
+        </div>
+    </section>
+
+    <section class="login-form-panel">
+        <form method="post" class="card login-card">
+            <h2>Welcome Back</h2>
+            <p class="login-subtitle">Sign in to continue to your manager workspace.</p>
+            <?php if ($flash): ?><div class="alert error"><?= h($flash['message']) ?></div><?php endif; ?>
+
+            <label>Manager Email
+                <input type="email" name="email" autocomplete="email" required>
+            </label>
+
+            <label>Security Password
+                <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+
+            <button type="submit">Sign In</button>
+        </form>
+    </section>
+</main>
 </body>
 </html>
