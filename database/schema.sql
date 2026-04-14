@@ -11,6 +11,19 @@ CREATE TABLE users (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+
+INSERT INTO users (full_name, email, password_hash, role)
+VALUES (
+    'System Administrator',
+    'admin@smartrent.com',
+    '$2y$12$bXswBP5qfi2gqke/xtYjbuzZwN9yKBnhldSgcDG7XyEjaP/Gh/4ZG',
+    'admin'
+)
+ON DUPLICATE KEY UPDATE
+    full_name = VALUES(full_name),
+    password_hash = VALUES(password_hash),
+    role = VALUES(role);
+
 CREATE TABLE properties (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
