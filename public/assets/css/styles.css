@@ -1,0 +1,40 @@
+:root {
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --paid: #198754;
+  --unpaid: #dc3545;
+  --partial: #ffc107;
+  --muted: #6b7280;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--text); }
+.app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.sidebar { background: #111827; color: #fff; padding: 20px; }
+.sidebar nav a { display: block; color: #d1d5db; padding: 10px 8px; text-decoration: none; border-radius: 8px; }
+.sidebar nav a:hover { background: #1f2937; color: #fff; }
+.content { padding: 20px; }
+.topbar { margin-bottom: 16px; }
+.cards, .charts-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); margin-bottom: 16px; }
+.card { background: var(--card); border-radius: 12px; padding: 16px; box-shadow: 0 3px 12px rgba(15,23,42,.08); }
+.metric strong { font-size: 1.6rem; }
+.metric.paid { border-left: 5px solid var(--paid); }
+.metric.unpaid { border-left: 5px solid var(--unpaid); }
+.alert { padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+.alert.success { background: #d1fae5; color: #065f46; }
+.alert.error { background: #fee2e2; color: #991b1b; }
+.grid-form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); align-items: end; }
+label { display: grid; gap: 6px; font-size: .9rem; color: var(--muted); }
+input, select, button { padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+button { background: #0ea5e9; color: #fff; border: none; cursor: pointer; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #e5e7eb; padding: 10px; text-align: left; }
+th { cursor: pointer; background: #f9fafb; }
+.badge { padding: 4px 10px; border-radius: 999px; font-size: .8rem; }
+.badge.paid { background: #dcfce7; color: #166534; }
+.badge.unpaid { background: #fee2e2; color: #991b1b; }
+.badge.partial { background: #fef3c7; color: #92400e; }
+.text-paid { color: var(--paid); font-weight: 600; }
+.text-unpaid { color: var(--unpaid); font-weight: 600; }
+.login-page { display: grid; place-items: center; min-height: 100vh; }
+.login-card { width: 360px; }
