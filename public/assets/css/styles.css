@@ -150,3 +150,73 @@ th { cursor: pointer; background: #f9fafb; }
     padding: 32px;
   }
 }
+
+.dashboard-toolbar {
+  margin-bottom: 16px;
+}
+
+.import-card h3 {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
+.import-card p {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.glass-login-page {
+  background: radial-gradient(circle at top right, #60a5fa 0%, #0f172a 46%, #020617 100%);
+}
+
+.glass-login-wrap {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 22px;
+}
+
+.glass-login-card {
+  width: min(430px, 100%);
+  padding: 30px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.33);
+  box-shadow: 0 12px 45px rgba(2, 6, 23, 0.4);
+  color: #f8fafc;
+}
+
+.glass-login-card h1 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.glass-login-card .login-subtitle {
+  color: #dbeafe;
+  margin-bottom: 18px;
+}
+
+.glass-login-card label {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.glass-login-card input {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+.login-alert {
+  background: #fee2e2;
+  color: #991b1b;
+}

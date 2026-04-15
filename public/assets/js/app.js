@@ -1,27 +1,114 @@
+const chartState = {
+  incomeTrend: null,
+  expectedVsPaid: null,
+  statusPie: null
+};
+
+const formatKsh = (value) => {
+  const amount = Number(value || 0);
+  return `KSH ${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+};
+
+const destroyDashboardCharts = () => {
+  Object.keys(chartState).forEach((key) => {
+    if (chartState[key]) {
+      chartState[key].destroy();
+      chartState[key] = null;
+    }
+  });
+};
+
+const renderDashboardSummary = (summary) => {
+  const expected = document.getElementById('metricExpected');
+  const paid = document.getElementById('metricPaid');
+  const outstanding = document.getElementById('metricOutstanding');
+  const collectionPercent = document.getElementById('metricCollectionPercent');
+
+  if (!expected || !paid || !outstanding || !collectionPercent) return;
+
+  expected.textContent = formatKsh(summary.expected);
+  paid.textContent = formatKsh(summary.paid);
+  outstanding.textContent = formatKsh(summary.outstanding);
+  collectionPercent.textContent = `${Number(summary.collection_percent || 0).toFixed(2)}%`;
+};
+
 const drawDashboard = () => {
   if (!window.dashboardData || typeof Chart === 'undefined') return;
   const trend = window.dashboardData.trend || [];
   const distribution = window.dashboardData.distribution || [];
 
-  const labels = trend.map(row => row.month_key);
-  const expected = trend.map(row => Number(row.expected || 0));
-  const paid = trend.map(row => Number(row.paid || 0));
+  renderDashboardSummary(window.dashboardData.summary || {});
 
-  new Chart(document.getElementById('incomeTrend'), {
+  const labels = trend.map((row) => row.month_key);
+  const expected = trend.map((row) => Number(row.expected || 0));
+  const paid = trend.map((row) => Number(row.paid || 0));
+
+  destroyDashboardCharts();
+
+  chartState.incomeTrend = new Chart(document.getElementById('incomeTrend'), {
     type: 'line',
-    data: { labels, datasets: [{ label: 'Paid Income', data: paid, borderColor: '#198754', tension: 0.3 }] }
+    data: {
+      labels,
+      datasets: [{ label: 'Paid Income', data: paid, borderColor: '#198754', tension: 0.3 }]
+    }
   });
 
-  new Chart(document.getElementById('expectedVsPaid'), {
+  chartState.expectedVsPaid = new Chart(document.getElementById('expectedVsPaid'), {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Expected', data: expected, backgroundColor: '#93c5fd' }, { label: 'Paid', data: paid, backgroundColor: '#198754' }] }
+    data: {
+      labels,
+      datasets: [
+        { label: 'Expected', data: expected, backgroundColor: '#93c5fd' },
+        { label: 'Paid', data: paid, backgroundColor: '#198754' }
+      ]
+    }
   });
 
-  new Chart(document.getElementById('statusPie'), {
+  chartState.statusPie = new Chart(document.getElementById('statusPie'), {
     type: 'pie',
     data: {
-      labels: distribution.map(row => row.status),
-      datasets: [{ data: distribution.map(row => Number(row.total)), backgroundColor: ['#198754', '#ffc107', '#dc3545'] }]
+      labels: distribution.map((row) => row.status),
+      datasets: [{ data: distribution.map((row) => Number(row.total)), backgroundColor: ['#198754', '#f97316'] }]
+    }
+  });
+};
+
+const wireCsvImport = () => {
+  const form = document.getElementById('csvUploadForm');
+  const feedback = document.getElementById('importFeedback');
+  if (!form || !feedback) return;
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    feedback.style.display = 'none';
+
+    try {
+      const response = await fetch('/public/import_handler.php', {
+        method: 'POST',
+        body: formData
+      });
+      const payload = await response.json();
+
+      feedback.className = `alert ${payload.success ? 'success' : 'error'}`;
+      feedback.textContent = payload.message || 'Import complete.';
+      feedback.style.display = 'block';
+
+      if (payload.success) {
+        window.dashboardData = {
+          ...window.dashboardData,
+          month: payload.month,
+          summary: payload.summary || {},
+          trend: payload.trend || [],
+          distribution: payload.distribution || []
+        };
+        drawDashboard();
+        form.reset();
+      }
+    } catch (error) {
+      feedback.className = 'alert error';
+      feedback.textContent = 'Import failed. Please retry with a valid CSV file.';
+      feedback.style.display = 'block';
     }
   });
 };
@@ -69,6 +156,7 @@ const addSorting = () => {
 
 document.addEventListener('DOMContentLoaded', () => {
   drawDashboard();
+  wireCsvImport();
   drawBudget();
   addSorting();
 });

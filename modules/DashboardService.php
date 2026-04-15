@@ -66,7 +66,12 @@ final class DashboardService
     {
         $pdo = Database::connection();
         $monthStart = (new DateTimeImmutable($month))->modify('first day of this month')->format('Y-m-d');
-        $stmt = $pdo->prepare('SELECT status, COUNT(*) total FROM rent_schedule WHERE month = :month GROUP BY status');
+        $stmt = $pdo->prepare(
+            "SELECT payment_status AS status, COUNT(*) total
+             FROM payments
+             WHERE month = :month
+             GROUP BY payment_status"
+        );
         $stmt->execute(['month' => $monthStart]);
 
         return $stmt->fetchAll();
