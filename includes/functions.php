@@ -28,3 +28,9 @@ function getFlash(): ?array
 
     return $flash;
 }
+
+
+function formatKsh(float|int|string $amount): string
+{
+    return "KSH " . number_format((float) $amount, 0, '.', ',');
+}

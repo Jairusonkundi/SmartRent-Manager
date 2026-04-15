@@ -1,0 +1,3 @@
+Property_Name,Unit_Number,Tenant_Name,Tenant_Email,Tenant_Phone,Monthly_Rent,Lease_Start,Payment_Date,Amount_Paid
+Sunset Court,A1,John Mwangi,john@example.com,+254700000001,50000,2026-01-01,2026-01-08,50000
+Riverside Flats,B4,Jane Njeri,jane@example.com,+254700000002,65000,2026-01-01,2026-01-12,50000
