@@ -20,9 +20,9 @@ $totalOutstanding = array_sum(array_map(fn($r) => max((float) $r['outstanding'],
 renderHeader('Budget');
 ?>
 <section class="cards">
-    <article class="card metric"><span>Total Expected Rent</span><strong>$<?= number_format($totalExpected, 2) ?></strong></article>
-    <article class="card metric paid"><span>Total Income</span><strong>$<?= number_format($totalPaid, 2) ?></strong></article>
-    <article class="card metric unpaid"><span>Outstanding Rent</span><strong>$<?= number_format($totalOutstanding, 2) ?></strong></article>
+    <article class="card metric"><span>Total Expected Rent</span><strong><?= h(formatKsh($totalExpected)) ?></strong></article>
+    <article class="card metric paid"><span>Total Income</span><strong><?= h(formatKsh($totalPaid)) ?></strong></article>
+    <article class="card metric unpaid"><span>Outstanding Rent</span><strong><?= h(formatKsh($totalOutstanding)) ?></strong></article>
 </section>
 <section class="card">
     <h3>Monthly Budget Breakdown (<?= $year ?>)</h3>
@@ -32,9 +32,9 @@ renderHeader('Budget');
             <?php foreach ($monthly as $row): ?>
                 <tr>
                     <td><?= h($row['month_key']) ?></td>
-                    <td>$<?= number_format((float) $row['expected'], 2) ?></td>
-                    <td class="text-paid">$<?= number_format((float) $row['paid'], 2) ?></td>
-                    <td class="text-unpaid">$<?= number_format((float) $row['outstanding'], 2) ?></td>
+                    <td><?= h(formatKsh((float) $row['expected'])) ?></td>
+                    <td class="text-paid"><?= h(formatKsh((float) $row['paid'])) ?></td>
+                    <td class="text-unpaid"><?= h(formatKsh((float) $row['outstanding'])) ?></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
