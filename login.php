@@ -67,12 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: min(100%, 420px);
             background: var(--card);
             border-radius: 16px;
-            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14);
             padding: 2rem;
             border: 1px solid var(--border);
         }
-        h1 { margin: 0 0 .35rem 0; font-size: 1.4rem; }
-        p.subtitle { margin: 0 0 1.5rem 0; color: var(--sub); }
+        h1 { margin: 0 0 .35rem 0; font-size: 1.45rem; letter-spacing: .2px; }
+        p.subtitle { margin: 0 0 1.5rem 0; color: var(--sub); line-height: 1.45; }
         label { display:block; font-weight: 600; margin-bottom: .4rem; }
         input {
             width: 100%;

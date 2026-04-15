@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/functions.php';
 
 session_start();
 if (!isset($_SESSION['finance_manager_id'])) {
@@ -83,17 +84,31 @@ $statusRows = [
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th, td { border-bottom: 1px solid #e2e8f0; padding: .65rem; text-align: left; }
         .charts { margin-top: 1rem; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        .import-card { margin: 1rem 0; }
+        .import-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+        .upload-btn { background: #0f766e; color: #fff; border: none; border-radius: 10px; padding: .65rem 1rem; font-weight: 700; cursor: pointer; }
+        #importFeedback { color: #475569; font-size: .92rem; }
     </style>
 </head>
 <body>
     <h1>Collection Dashboard</h1>
     <div class="grid">
-        <div class="card"><h3>Total Expected Rent</h3><div class="metric"><?= htmlspecialchars(formatKsh($totalExpected), ENT_QUOTES, 'UTF-8') ?></div></div>
-        <div class="card"><h3>Total Paid</h3><div class="metric status-paid"><?= htmlspecialchars(formatKsh($totalPaid), ENT_QUOTES, 'UTF-8') ?></div></div>
+        <div class="card"><h3>Total Expected Rent</h3><div id="totalExpectedValue" class="metric"><?= htmlspecialchars(formatKsh($totalExpected), ENT_QUOTES, 'UTF-8') ?></div></div>
+        <div class="card"><h3>Total Paid</h3><div id="totalPaidValue" class="metric status-paid"><?= htmlspecialchars(formatKsh($totalPaid), ENT_QUOTES, 'UTF-8') ?></div></div>
         <div class="card"><h3>Collection Efficiency</h3><div class="metric"><?= $collectionEfficiency ?>%</div></div>
         <?php foreach ($statusRows as $status): ?>
-            <div class="card"><h3><?= htmlspecialchars($status['label'], ENT_QUOTES, 'UTF-8') ?></h3><div class="metric <?= $status['class'] ?>"><?= htmlspecialchars((string) $status['value'], ENT_QUOTES, 'UTF-8') ?></div></div>
+            <div class="card"><h3><?= htmlspecialchars($status['label'], ENT_QUOTES, 'UTF-8') ?></h3><div<?= $status['label'] === 'Outstanding' ? " id=\"totalArrearsValue\"" : "" ?> class="metric <?= $status['class'] ?>"><?= htmlspecialchars((string) $status['value'], ENT_QUOTES, 'UTF-8') ?></div></div>
         <?php endforeach; ?>
+    </div>
+
+
+    <div class="card import-card">
+        <h3>Monthly Upload</h3>
+        <form id="csvUploadForm" class="import-actions" enctype="multipart/form-data">
+            <input type="file" name="csv_file" accept=".csv" required>
+            <button class="upload-btn" type="submit">Upload Monthly Data</button>
+            <span id="importFeedback"></span>
+        </form>
     </div>
 
     <div class="card">
@@ -126,6 +141,34 @@ $statusRows = [
         const onTime = timingData.map(x => Number(x.on_time_count || 0));
         const late = timingData.map(x => Number(x.late_count || 0));
 
+
+
+        const uploadForm = document.getElementById('csvUploadForm');
+        const importFeedback = document.getElementById('importFeedback');
+        uploadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            importFeedback.textContent = 'Uploading...';
+
+            try {
+                const response = await fetch('import_handler.php', {
+                    method: 'POST',
+                    body: new FormData(uploadForm)
+                });
+
+                const payload = await response.json();
+                if (!response.ok) {
+                    throw new Error(payload.message || 'Upload failed.');
+                }
+
+                document.getElementById('totalExpectedValue').textContent = payload.dashboard_totals.expected;
+                document.getElementById('totalPaidValue').textContent = payload.dashboard_totals.paid;
+                document.getElementById('totalArrearsValue').textContent = payload.dashboard_totals.arrears;
+                importFeedback.textContent = `Upload complete: ${payload.rows_processed} row(s) imported.`;
+                uploadForm.reset();
+            } catch (error) {
+                importFeedback.textContent = error.message || 'Upload failed.';
+            }
+        });
         new Chart(document.getElementById('timingChart'), {
             type: 'bar',
             data: {

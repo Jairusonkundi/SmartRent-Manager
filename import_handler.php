@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/functions.php';
 
 session_start();
 
@@ -46,14 +47,36 @@ $pdo = dbConnect();
 $rowsProcessed = 0;
 $resultPreview = [];
 
+$parseCsvDate = static function (string $rawDate): string {
+    $normalized = trim($rawDate);
+    if ($normalized === '') {
+        throw new RuntimeException('Date value cannot be empty.');
+    }
+
+    $timestamp = strtotime($normalized);
+    if ($timestamp !== false) {
+        return date('Y-m-d', $timestamp);
+    }
+
+    $date = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $normalized)
+        ?: DateTimeImmutable::createFromFormat('Y-m-d', $normalized);
+
+    if ($date === false) {
+        throw new RuntimeException('Invalid date format: ' . $rawDate);
+    }
+
+    return $date->format('Y-m-d');
+};
+
 try {
     $pdo->beginTransaction();
 
     $propertyStmt = $pdo->prepare('INSERT INTO properties (name, location) VALUES (:name, :location) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), updated_at = CURRENT_TIMESTAMP');
     $unitStmt = $pdo->prepare('INSERT INTO units (property_id, unit_number, status) VALUES (:property_id, :unit_number, :status) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), status = VALUES(status), updated_at = CURRENT_TIMESTAMP');
+
     $tenantFindStmt = $pdo->prepare('SELECT id FROM tenants WHERE email = :email LIMIT 1');
-    $tenantInsertStmt = $pdo->prepare('INSERT INTO tenants (name, phone, email, status) VALUES (:name, :phone, :email, :status)');
-    $tenantUpdateStmt = $pdo->prepare('UPDATE tenants SET name = :name, phone = :phone, status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id');
+    $tenantInsertStmt = $pdo->prepare('INSERT INTO tenants (name, phone, email, tenant_phone, tenant_email, status) VALUES (:name, :phone, :email, :tenant_phone, :tenant_email, :status)');
+    $tenantUpdateStmt = $pdo->prepare('UPDATE tenants SET name = :name, phone = :phone, email = :email, tenant_phone = :tenant_phone, tenant_email = :tenant_email, status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id');
 
     $leaseStmt = $pdo->prepare(
         'INSERT INTO leases (tenant_id, unit_id, rent_amount, start_date, status)
@@ -68,8 +91,8 @@ try {
     );
 
     $paymentStmt = $pdo->prepare(
-        'INSERT INTO payments (tenant_id, amount_paid, payment_date, month, payment_channel, reference_no, recorded_by)
-         VALUES (:tenant_id, :amount_paid, :payment_date, :month, :payment_channel, :reference_no, :recorded_by)'
+        'INSERT INTO payments (tenant_id, amount_paid, payment_date, month, month_recorded, payment_status, payment_channel, reference_no, recorded_by)
+         VALUES (:tenant_id, :amount_paid, :payment_date, :month, :month_recorded, :payment_status, :payment_channel, :reference_no, :recorded_by)'
     );
 
     while (($row = fgetcsv($handle)) !== false) {
@@ -88,17 +111,20 @@ try {
         $tenantEmail = strtolower(trim((string) $data['Tenant_Email']));
         $tenantPhone = trim((string) $data['Tenant_Phone']);
         $monthlyRent = (float) $data['Monthly_Rent'];
-        $leaseStart = (new DateTimeImmutable((string) $data['Lease_Start']))->format('Y-m-d');
-        $paymentDateObj = new DateTimeImmutable((string) $data['Payment_Date']);
-        $paymentDate = $paymentDateObj->format('Y-m-d');
+
+        $leaseStartDate = $parseCsvDate((string) $data['Lease_Start']);
+        $paymentDate = $parseCsvDate((string) $data['Payment_Date']);
+        $paymentDateObj = new DateTimeImmutable($paymentDate);
         $amountPaid = (float) $data['Amount_Paid'];
 
         $expectedRent = $monthlyRent;
-        $balance = $expectedRent - $amountPaid;
+        $balance = max(0, $expectedRent - $amountPaid);
         $status = $amountPaid >= $expectedRent ? 'paid' : ($amountPaid > 0 ? 'partial' : 'unpaid');
         $statusLabel = ucfirst($status);
+        $statusColor = $amountPaid <= 0 ? 'Red' : ($balance <= 0 ? 'Green' : 'Yellow');
+
         $monthKey = $paymentDateObj->modify('first day of this month')->format('Y-m-d');
-        $quarter = 'Q' . (string) ceil(((int) $paymentDateObj->format('n')) / 3);
+        $monthRecorded = $paymentDateObj->format('F Y');
         $paymentTiming = ((int) $paymentDateObj->format('j') > 10) ? 'Late' : 'On Time';
 
         $propertyStmt->execute(['name' => $propertyName, 'location' => 'Not specified']);
@@ -119,6 +145,8 @@ try {
                 'name' => $tenantName,
                 'phone' => $tenantPhone,
                 'email' => $tenantEmail,
+                'tenant_phone' => $tenantPhone,
+                'tenant_email' => $tenantEmail,
                 'status' => 'active',
             ]);
             $tenantId = (int) $pdo->lastInsertId();
@@ -127,6 +155,9 @@ try {
                 'id' => $tenantId,
                 'name' => $tenantName,
                 'phone' => $tenantPhone,
+                'email' => $tenantEmail,
+                'tenant_phone' => $tenantPhone,
+                'tenant_email' => $tenantEmail,
                 'status' => 'active',
             ]);
         }
@@ -135,11 +166,11 @@ try {
             'tenant_id' => $tenantId,
             'unit_id' => $unitId,
             'rent_amount' => $monthlyRent,
-            'start_date' => $leaseStart,
+            'start_date' => $leaseStartDate,
             'status' => 'active',
         ]);
 
-        $dueDate = $paymentDateObj->modify('first day of this month')->setDate((int) $paymentDateObj->format('Y'), (int) $paymentDateObj->format('m'), 10)->format('Y-m-d');
+        $dueDate = $paymentDateObj->setDate((int) $paymentDateObj->format('Y'), (int) $paymentDateObj->format('m'), 10)->format('Y-m-d');
         $rentScheduleStmt->execute([
             'tenant_id' => $tenantId,
             'month' => $monthKey,
@@ -153,8 +184,10 @@ try {
             'amount_paid' => $amountPaid,
             'payment_date' => $paymentDate,
             'month' => $monthKey,
+            'month_recorded' => $monthRecorded,
+            'payment_status' => $paymentTiming,
             'payment_channel' => 'bank_transfer',
-            'reference_no' => "{$paymentTiming} {$quarter}",
+            'reference_no' => $paymentTiming,
             'recorded_by' => $_SESSION['finance_manager_id'] ?? null,
         ]);
 
@@ -167,9 +200,9 @@ try {
             'amount_paid' => formatKsh($amountPaid),
             'balance' => formatKsh($balance),
             'status' => $statusLabel,
-            'month' => $paymentDateObj->format('F Y'),
-            'quarter' => $quarter,
+            'status_color' => $statusColor,
             'payment_status' => $paymentTiming,
+            'month_recorded' => $monthRecorded,
         ];
     }
 
@@ -186,9 +219,30 @@ try {
     fclose($handle);
 }
 
+$dashboardSummary = $pdo->query(
+    'SELECT
+        COALESCE(SUM(rs.expected_rent), 0) AS total_expected,
+        COALESCE(SUM(paid.total_paid), 0) AS total_paid
+     FROM rent_schedule rs
+     LEFT JOIN (
+        SELECT tenant_id, month, SUM(amount_paid) AS total_paid
+        FROM payments
+        GROUP BY tenant_id, month
+     ) paid ON paid.tenant_id = rs.tenant_id AND paid.month = rs.month'
+)->fetch();
+
+$totalExpected = (float) ($dashboardSummary['total_expected'] ?? 0);
+$totalPaid = (float) ($dashboardSummary['total_paid'] ?? 0);
+$totalArrears = max(0, $totalExpected - $totalPaid);
+
 header('Content-Type: application/json');
 echo json_encode([
     'message' => 'CSV import completed successfully.',
     'rows_processed' => $rowsProcessed,
     'preview' => $resultPreview,
+    'dashboard_totals' => [
+        'expected' => formatKsh($totalExpected),
+        'paid' => formatKsh($totalPaid),
+        'arrears' => formatKsh($totalArrears),
+    ],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
