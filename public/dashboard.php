@@ -18,10 +18,22 @@ $distribution = $service->paymentStatusDistribution($month);
 renderHeader('Dashboard');
 ?>
 <section class="cards">
-    <article class="card metric"><span>Total Expected</span><strong><?= formatCurrency((float) $summary['expected']) ?></strong></article>
-    <article class="card metric paid"><span>Total Paid</span><strong><?= formatCurrency((float) $summary['paid']) ?></strong></article>
-    <article class="card metric unpaid"><span>Outstanding</span><strong><?= formatCurrency((float) $summary['outstanding']) ?></strong></article>
-    <article class="card metric"><span>Collection %</span><strong><?= number_format($summary['collection_percent'], 2) ?>%</strong></article>
+    <article class="card metric">
+        <span class="metric-label">Total Expected Rent:</span>
+        <strong><span class="card-value"><?= formatCurrency((float) $summary['expected']) ?></span></strong>
+    </article>
+    <article class="card metric paid">
+        <span class="metric-label">Total Paid:</span>
+        <strong><span class="card-value"><?= formatCurrency((float) $summary['paid']) ?></span></strong>
+    </article>
+    <article class="card metric unpaid">
+        <span class="metric-label">Outstanding Rent:</span>
+        <strong><span class="card-value"><?= formatCurrency((float) $summary['outstanding']) ?></span></strong>
+    </article>
+    <article class="card metric">
+        <span class="metric-label">Collection %:</span>
+        <strong><span class="card-value"><?= number_format($summary['collection_percent'], 2) ?>%</span></strong>
+    </article>
 </section>
 <section class="charts-grid">
     <article class="card"><h3>Monthly Income Trend</h3><canvas id="incomeTrend"></canvas></article>
