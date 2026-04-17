@@ -50,8 +50,8 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
 $tenants = $pdo->query("SELECT id, name FROM tenants WHERE status='active' ORDER BY name")->fetchAll();
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$params = [];
 $where = ['1=1'];
+$params = [];
 $having = ['1=1'];
 $sumPaidExpr = 'COALESCE(SUM(pm.amount_paid), 0)';
 $paymentStatusExpr = "CASE
@@ -108,18 +108,11 @@ $paymentsSql = "SELECT
     ORDER BY rs.month DESC, t.name ASC";
 
 if (!$isAllLimit) {
-    $paymentsSql .= ' LIMIT :limit OFFSET :offset';
+    $paymentsSql .= ' LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
 }
 
 $paymentsStmt = $pdo->prepare($paymentsSql);
-foreach ($params as $key => $value) {
-    $paymentsStmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
-}
-if (!$isAllLimit) {
-    $paymentsStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $paymentsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-}
-$paymentsStmt->execute();
+$paymentsStmt->execute($params);
 $recentPayments = $paymentsStmt->fetchAll();
 
 $currentCount = count($recentPayments);

@@ -31,8 +31,8 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$params = [];
 $where = ['1=1'];
+$params = [];
 
 if ($search !== '') {
     $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
@@ -70,18 +70,11 @@ $querySql = "SELECT t.id, t.name, t.phone, t.email, t.status, u.unit_number, p.n
     ORDER BY t.name";
 
 if (!$isAllLimit) {
-    $querySql .= ' LIMIT :limit OFFSET :offset';
+    $querySql .= ' LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
 }
 
 $stmt = $pdo->prepare($querySql);
-foreach ($params as $key => $value) {
-    $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
-}
-if (!$isAllLimit) {
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-}
-$stmt->execute();
+$stmt->execute($params);
 $tenants = $stmt->fetchAll();
 
 $currentCount = count($tenants);

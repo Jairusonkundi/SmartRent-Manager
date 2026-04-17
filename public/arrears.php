@@ -31,11 +31,12 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$params = [];
 $where = ['1=1', 'rs.month <= CURRENT_DATE'];
-$having = ['(rs.expected_rent - COALESCE(SUM(p.amount_paid), 0)) > 0'];
+$params = [];
 $amountPaidExpr = 'COALESCE(SUM(p.amount_paid), 0)';
-$balanceExpr = "(rs.expected_rent - {$amountPaidExpr})";
+$monthlyRentExpr = 'COALESCE(MAX(p.monthly_rent), rs.expected_rent)';
+$balanceExpr = "({$monthlyRentExpr} - {$amountPaidExpr})";
+$having = ["{$balanceExpr} > 0"];
 $rentStatusExpr = "CASE
             WHEN {$balanceExpr} <= 0 THEN 'Paid'
             WHEN {$amountPaidExpr} = 0 THEN 'Unpaid'
@@ -81,7 +82,7 @@ $sql = "
 SELECT t.name,
        rs.month,
        rs.due_date,
-       rs.expected_rent,
+       {$monthlyRentExpr} AS expected_rent,
        u.unit_number,
        pr.name AS property_name,
        {$amountPaidExpr} AS paid,
@@ -93,18 +94,11 @@ ORDER BY balance DESC, rs.month ASC
 ";
 
 if (!$isAllLimit) {
-    $sql .= 'LIMIT :limit OFFSET :offset';
+    $sql .= 'LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
 }
 
 $stmt = $pdo->prepare($sql);
-foreach ($params as $key => $value) {
-    $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
-}
-if (!$isAllLimit) {
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-}
-$stmt->execute();
+$stmt->execute($params);
 $arrears = $stmt->fetchAll();
 
 $currentCount = count($arrears);
