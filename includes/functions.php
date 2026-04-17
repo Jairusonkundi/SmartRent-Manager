@@ -14,6 +14,7 @@ function monthStart(string $month): string
 
 function formatCurrency(float $amount): string
 {
+    // Keep a fixed space after the currency code for readable label/value output.
     return 'KSH ' . number_format($amount, 0, '.', ',');
 }
 

@@ -20,9 +20,18 @@ $totalOutstanding = array_sum(array_map(fn($r) => max((float) $r['outstanding'],
 renderHeader('Budget');
 ?>
 <section class="cards">
-    <article class="card metric"><span>Total Expected Rent</span><strong><?= formatCurrency($totalExpected) ?></strong></article>
-    <article class="card metric paid"><span>Total Income</span><strong><?= formatCurrency($totalPaid) ?></strong></article>
-    <article class="card metric unpaid"><span>Outstanding Rent</span><strong><?= formatCurrency($totalOutstanding) ?></strong></article>
+    <article class="card metric">
+        <span class="metric-label">Total Expected Rent:</span>
+        <strong><span class="card-value"><?= formatCurrency($totalExpected) ?></span></strong>
+    </article>
+    <article class="card metric paid">
+        <span class="metric-label">Total Income:</span>
+        <strong><span class="card-value"><?= formatCurrency($totalPaid) ?></span></strong>
+    </article>
+    <article class="card metric unpaid">
+        <span class="metric-label">Outstanding Rent:</span>
+        <strong><span class="card-value"><?= formatCurrency($totalOutstanding) ?></span></strong>
+    </article>
 </section>
 <section class="card">
     <h3>Monthly Budget Breakdown (<?= $year ?>)</h3>
