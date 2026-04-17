@@ -31,12 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $page = max(1, (int) ($_GET['page'] ?? 1));
 $requestedLimit = (string) ($_GET['limit'] ?? '10');
-$limit = $requestedLimit === 'all' ? 9999 : (int) $requestedLimit;
-$allowedLimits = [5, 10, 15, 20, 9999];
-if (!in_array($limit, $allowedLimits, true)) {
+$isAllLimit = $requestedLimit === 'all';
+$limit = $isAllLimit ? 10 : (int) $requestedLimit;
+$allowedLimits = [5, 10, 15, 20];
+if (!$isAllLimit && !in_array($limit, $allowedLimits, true)) {
     $limit = 10;
 }
-$offset = ($page - 1) * $limit;
+$offset = $isAllLimit ? 0 : ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 $statusFilter = (string) ($_GET['status'] ?? 'all');
@@ -49,29 +50,33 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
 $tenants = $pdo->query("SELECT id, name FROM tenants WHERE status='active' ORDER BY name")->fetchAll();
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$whereClauses = ['1=1'];
 $params = [];
+$where = ['1=1'];
+$having = ['1=1'];
+$sumPaidExpr = 'COALESCE(SUM(pm.amount_paid), 0)';
+$paymentStatusExpr = "CASE
+        WHEN {$sumPaidExpr} = 0 THEN 'Unpaid'
+        WHEN {$sumPaidExpr} < rs.expected_rent THEN 'Partial'
+        ELSE 'Paid'
+    END";
 
 if ($search !== '') {
-    $whereClauses[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
-    $params[':search'] = '%' . $search . '%';
+    $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
+    $params['search'] = '%' . $search . '%';
 }
 
 if ($propertyFilter !== 'all') {
-    $whereClauses[] = 'pr.id = :property_id';
-    $params[':property_id'] = (int) $propertyFilter;
+    $where[] = 'pr.id = :property_id';
+    $params['property_id'] = (int) $propertyFilter;
 }
 
 if ($statusFilter !== 'all') {
-    $whereClauses[] = "CASE
-            WHEN COALESCE(SUM(pm.amount_paid), 0) = 0 THEN 'Unpaid'
-            WHEN COALESCE(SUM(pm.amount_paid), 0) < rs.expected_rent THEN 'Partial'
-            ELSE 'Paid'
-        END = :status";
-    $params[':status'] = $statusFilter;
+    $having[] = "{$paymentStatusExpr} = :status";
+    $params['status'] = $statusFilter;
 }
 
-$whereSql = implode(' AND ', $whereClauses);
+$whereSql = implode(' AND ', $where);
+$havingSql = implode(' AND ', $having);
 
 $baseFrom = "
     FROM rent_schedule rs
@@ -82,45 +87,45 @@ $baseFrom = "
     LEFT JOIN payments pm ON pm.tenant_id = rs.tenant_id AND pm.month = rs.month
     WHERE {$whereSql}
     GROUP BY rs.id, t.name, rs.month, rs.expected_rent, pr.name, u.unit_number
+    HAVING {$havingSql}
 ";
 
 $countSql = "SELECT COUNT(*) FROM (SELECT rs.id {$baseFrom}) AS counted_rows";
 $countStmt = $pdo->prepare($countSql);
-foreach ($params as $key => $value) {
-    $countStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
-}
-$countStmt->execute();
+$countStmt->execute($params);
 $totalRecords = (int) $countStmt->fetchColumn();
 
 $paymentsSql = "SELECT
         t.name,
         rs.month,
         rs.expected_rent,
-        COALESCE(SUM(pm.amount_paid), 0) AS amount_paid,
+        {$sumPaidExpr} AS amount_paid,
         MAX(pm.payment_date) AS payment_date,
         pr.name AS property_name,
         u.unit_number,
-        CASE
-            WHEN COALESCE(SUM(pm.amount_paid), 0) = 0 THEN 'Unpaid'
-            WHEN COALESCE(SUM(pm.amount_paid), 0) < rs.expected_rent THEN 'Partial'
-            ELSE 'Paid'
-        END AS payment_status
+        {$paymentStatusExpr} AS payment_status
     {$baseFrom}
-    ORDER BY rs.month DESC, t.name ASC
-    LIMIT :limit OFFSET :offset";
+    ORDER BY rs.month DESC, t.name ASC";
+
+if (!$isAllLimit) {
+    $paymentsSql .= ' LIMIT :limit OFFSET :offset';
+}
+
 $paymentsStmt = $pdo->prepare($paymentsSql);
 foreach ($params as $key => $value) {
-    $paymentsStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    $paymentsStmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
 }
-$paymentsStmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
-$paymentsStmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
+if (!$isAllLimit) {
+    $paymentsStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $paymentsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+}
 $paymentsStmt->execute();
 $recentPayments = $paymentsStmt->fetchAll();
 
 $currentCount = count($recentPayments);
-
-$paginationHtml = renderPaginationLinks($totalRecords, $page, $limit, [
-    'limit' => $limit,
+$paginationLimit = $isAllLimit ? max(1, $totalRecords) : $limit;
+$paginationHtml = renderPaginationLinks($totalRecords, $page, $paginationLimit, [
+    'limit' => $isAllLimit ? 'all' : (string) $limit,
     'search' => $search,
     'property_id' => $propertyFilter,
     'status' => $statusFilter,
@@ -150,9 +155,10 @@ renderHeader('Payments');
     <form method="get" class="control-bar">
         <label>Limit
             <select name="limit">
-                <?php foreach ([5, 10, 15, 20, 9999] as $limitOption): ?>
-                    <option value="<?= $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
+                <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
+                    <option value="<?= $limitOption ?>" <?= !$isAllLimit && $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption ?></option>
                 <?php endforeach; ?>
+                <option value="all" <?= $isAllLimit ? 'selected' : '' ?>>All</option>
             </select>
         </label>
         <label>Search
