@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/functions.php';
+
 function renderHeader(string $title): void
 {
     $flash = getFlash();
@@ -32,8 +34,8 @@ function renderHeader(string $title): void
     </aside>
     <main class="content">
         <header class="topbar"><h2><?= h($title) ?></h2></header>
-        <?php if ($flash): ?>
-            <div class="alert <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
+        <?php if ($flash !== null && isset($flash['type'], $flash['message'])): ?>
+            <div class="alert <?= h((string) $flash['type']) ?>"><?= h((string) $flash['message']) ?></div>
         <?php endif; ?>
 <?php
 }
