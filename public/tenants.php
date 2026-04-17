@@ -21,23 +21,34 @@ if (!in_array($limit, $allowedLimits, true)) {
 $offset = ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
+$statusFilter = (string) ($_GET['status'] ?? 'all');
+$allowedStatuses = ['active', 'inactive'];
+
+if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true)) {
+    $statusFilter = 'all';
+}
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$where = ['1=1', "t.status = 'active'"];
+$whereClauses = ['1=1'];
 $params = [];
 
 if ($search !== '') {
-    $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
+    $whereClauses[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
     $params[':search'] = '%' . $search . '%';
 }
 
 if ($propertyFilter !== 'all') {
-    $where[] = 'p.id = :property_id';
+    $whereClauses[] = 'p.id = :property_id';
     $params[':property_id'] = (int) $propertyFilter;
 }
 
-$whereSql = implode(' AND ', $where);
+if ($statusFilter !== 'all') {
+    $whereClauses[] = 't.status = :status';
+    $params[':status'] = $statusFilter;
+}
+
+$whereSql = implode(' AND ', $whereClauses);
 
 $countSql = "SELECT COUNT(*)
     FROM tenants t
@@ -52,7 +63,7 @@ foreach ($params as $key => $value) {
 $countStmt->execute();
 $totalRecords = (int) $countStmt->fetchColumn();
 
-$querySql = "SELECT t.id, t.name, t.phone, t.email, u.unit_number, p.name AS property_name
+$querySql = "SELECT t.id, t.name, t.phone, t.email, t.status, u.unit_number, p.name AS property_name
     FROM tenants t
     LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
     LEFT JOIN units u ON u.id = l.unit_id
@@ -69,25 +80,24 @@ $stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
 $stmt->execute();
 $tenants = $stmt->fetchAll();
 
-$showFrom = $totalRecords > 0 ? (($page - 1) * $limit) + 1 : 0;
-$showTo = $totalRecords > 0 ? min($offset + count($tenants), $totalRecords) : 0;
-$rowNumber = $showFrom;
+$currentCount = count($tenants);
 
 $paginationHtml = renderPaginationLinks($totalRecords, $page, $limit, [
-    'limit' => $limit === 9999 ? 'all' : $limit,
+    'limit' => $limit,
     'search' => $search,
     'property_id' => $propertyFilter,
+    'status' => $statusFilter,
 ]);
 
 renderHeader('Tenants');
 ?>
 <article class="card">
-    <h3>Active Tenants</h3>
+    <h3>Tenants</h3>
     <form method="get" class="control-bar">
         <label>Limit
             <select name="limit">
                 <?php foreach ([5, 10, 15, 20, 9999] as $limitOption): ?>
-                    <option value="<?= $limitOption === 9999 ? 'all' : $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
+                    <option value="<?= $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
                 <?php endforeach; ?>
             </select>
         </label>
@@ -104,16 +114,25 @@ renderHeader('Tenants');
                 <?php endforeach; ?>
             </select>
         </label>
+        <label>Status
+            <select name="status">
+                <option value="all" <?= $statusFilter === 'all' ? 'selected' : '' ?>>All Statuses</option>
+                <?php foreach ($allowedStatuses as $statusOption): ?>
+                    <option value="<?= h($statusOption) ?>" <?= $statusFilter === $statusOption ? 'selected' : '' ?>><?= ucfirst(h($statusOption)) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
         <button type="submit">Apply</button>
         <a class="button" href="/public/tenants.php">Clear Filters</a>
     </form>
-    <p>Showing <?= $showFrom ?> to <?= $showTo ?> of <?= $totalRecords ?> Records</p>
+    <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
     <table class="sortable">
         <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Property</th><th>Unit</th></tr></thead>
         <tbody>
-        <?php foreach ($tenants as $tenant): ?>
+        <?php foreach ($tenants as $index => $tenant): ?>
+            <?php $rowNumber = $offset + $index + 1; ?>
             <tr>
-                <td><?= $rowNumber++ ?></td>
+                <td><?= $rowNumber ?></td>
                 <td><?= h($tenant['name']) ?></td>
                 <td><?= h($tenant['phone']) ?></td>
                 <td><?= h($tenant['email']) ?></td>
