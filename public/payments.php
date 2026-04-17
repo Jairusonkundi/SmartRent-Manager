@@ -10,6 +10,7 @@ require_once __DIR__ . '/../modules/PaymentService.php';
 
 requireAuth();
 $pdo = Database::connection();
+$pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tenantId = (int) ($_POST['tenant_id'] ?? 0);
@@ -28,17 +29,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$pagination = getPaginationState();
-$page = $pagination['page'];
-$limit = $pagination['limit'];
-$offset = $pagination['offset'];
+$page = max(1, (int) ($_GET['page'] ?? 1));
+$requestedLimit = (string) ($_GET['limit'] ?? '10');
+$limit = $requestedLimit === 'all' ? 9999 : (int) $requestedLimit;
+$allowedLimits = [5, 10, 15, 20, 9999];
+if (!in_array($limit, $allowedLimits, true)) {
+    $limit = 10;
+}
+$offset = ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
-$propertyId = (int) ($_GET['property_id'] ?? 0);
-$statusFilter = (string) ($_GET['status'] ?? '');
+$propertyFilter = (string) ($_GET['property_id'] ?? 'all');
+$statusFilter = (string) ($_GET['status'] ?? 'all');
 $allowedStatuses = ['Paid', 'Partial', 'Unpaid'];
 
-if (!in_array($statusFilter, $allowedStatuses, true)) {
-    $statusFilter = '';
+if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true)) {
+    $statusFilter = 'all';
 }
 
 $tenants = $pdo->query("SELECT id, name FROM tenants WHERE status='active' ORDER BY name")->fetchAll();
@@ -52,12 +57,12 @@ if ($search !== '') {
     $params[':search'] = '%' . $search . '%';
 }
 
-if ($propertyId > 0) {
+if ($propertyFilter !== 'all') {
     $where[] = 'pr.id = :property_id';
-    $params[':property_id'] = $propertyId;
+    $params[':property_id'] = (int) $propertyFilter;
 }
 
-if ($statusFilter !== '') {
+if ($statusFilter !== 'all') {
     $where[] = "CASE
             WHEN COALESCE(SUM(pm.amount_paid), 0) = 0 THEN 'Unpaid'
             WHEN COALESCE(SUM(pm.amount_paid), 0) < rs.expected_rent THEN 'Partial'
@@ -107,15 +112,19 @@ $paymentsStmt = $pdo->prepare($paymentsSql);
 foreach ($params as $key => $value) {
     $paymentsStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
 }
-$paymentsStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-$paymentsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$paymentsStmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
+$paymentsStmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
 $paymentsStmt->execute();
 $recentPayments = $paymentsStmt->fetchAll();
 
+$showFrom = $totalRecords > 0 ? (($page - 1) * $limit) + 1 : 0;
+$showTo = $totalRecords > 0 ? min($offset + count($recentPayments), $totalRecords) : 0;
+$rowNumber = $showFrom;
+
 $paginationHtml = renderPaginationLinks($totalRecords, $page, $limit, [
-    'limit' => $limit,
+    'limit' => $limit === 9999 ? 'all' : $limit,
     'search' => $search,
-    'property_id' => $propertyId,
+    'property_id' => $propertyFilter,
     'status' => $statusFilter,
 ]);
 
@@ -143,8 +152,8 @@ renderHeader('Payments');
     <form method="get" class="control-bar">
         <label>Limit
             <select name="limit">
-                <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
-                    <option value="<?= $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption ?></option>
+                <?php foreach ([5, 10, 15, 20, 9999] as $limitOption): ?>
+                    <option value="<?= $limitOption === 9999 ? 'all' : $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
                 <?php endforeach; ?>
             </select>
         </label>
@@ -153,9 +162,9 @@ renderHeader('Payments');
         </label>
         <label>Property
             <select name="property_id">
-                <option value="0">All Properties</option>
+                <option value="all" <?= $propertyFilter === 'all' ? 'selected' : '' ?>>All Properties</option>
                 <?php foreach ($properties as $property): ?>
-                    <option value="<?= (int) $property['id'] ?>" <?= $propertyId === (int) $property['id'] ? 'selected' : '' ?>>
+                    <option value="<?= (int) $property['id'] ?>" <?= $propertyFilter === (string) $property['id'] ? 'selected' : '' ?>>
                         <?= h($property['name']) ?>
                     </option>
                 <?php endforeach; ?>
@@ -163,19 +172,22 @@ renderHeader('Payments');
         </label>
         <label>Status
             <select name="status">
-                <option value="">All Statuses</option>
+                <option value="all" <?= $statusFilter === 'all' ? 'selected' : '' ?>>All Statuses</option>
                 <?php foreach ($allowedStatuses as $statusOption): ?>
                     <option value="<?= h($statusOption) ?>" <?= $statusFilter === $statusOption ? 'selected' : '' ?>><?= h($statusOption) ?></option>
                 <?php endforeach; ?>
             </select>
         </label>
         <button type="submit">Apply</button>
+        <a class="button" href="/public/payments.php">Clear Filters</a>
     </form>
+    <p>Showing <?= $showFrom ?> to <?= $showTo ?> of <?= $totalRecords ?> Records</p>
     <table class="sortable">
-        <thead><tr><th>Tenant</th><th>Property</th><th>Unit</th><th>Amount</th><th>Payment Date</th><th>Month</th><th>Payment Status</th></tr></thead>
+        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Amount</th><th>Payment Date</th><th>Month</th><th>Payment Status</th></tr></thead>
         <tbody>
             <?php foreach ($recentPayments as $p): ?>
                 <tr>
+                    <td><?= $rowNumber++ ?></td>
                     <td><?= h($p['name']) ?></td>
                     <td><?= h($p['property_name']) ?></td>
                     <td><?= h($p['unit_number']) ?></td>

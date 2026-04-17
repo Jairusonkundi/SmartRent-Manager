@@ -9,17 +9,22 @@ require_once __DIR__ . '/../config/database.php';
 
 requireAuth();
 $pdo = Database::connection();
+$pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
-$pagination = getPaginationState();
-$page = $pagination['page'];
-$limit = $pagination['limit'];
-$offset = $pagination['offset'];
+$page = max(1, (int) ($_GET['page'] ?? 1));
+$requestedLimit = (string) ($_GET['limit'] ?? '10');
+$limit = $requestedLimit === 'all' ? 9999 : (int) $requestedLimit;
+$allowedLimits = [5, 10, 15, 20, 9999];
+if (!in_array($limit, $allowedLimits, true)) {
+    $limit = 10;
+}
+$offset = ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
-$propertyId = (int) ($_GET['property_id'] ?? 0);
+$propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$where = ["t.status = 'active'"];
+$where = ['1=1', "t.status = 'active'"];
 $params = [];
 
 if ($search !== '') {
@@ -27,9 +32,9 @@ if ($search !== '') {
     $params[':search'] = '%' . $search . '%';
 }
 
-if ($propertyId > 0) {
+if ($propertyFilter !== 'all') {
     $where[] = 'p.id = :property_id';
-    $params[':property_id'] = $propertyId;
+    $params[':property_id'] = (int) $propertyFilter;
 }
 
 $whereSql = implode(' AND ', $where);
@@ -59,15 +64,19 @@ $stmt = $pdo->prepare($querySql);
 foreach ($params as $key => $value) {
     $stmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
 }
-$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
+$stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
 $stmt->execute();
 $tenants = $stmt->fetchAll();
 
+$showFrom = $totalRecords > 0 ? (($page - 1) * $limit) + 1 : 0;
+$showTo = $totalRecords > 0 ? min($offset + count($tenants), $totalRecords) : 0;
+$rowNumber = $showFrom;
+
 $paginationHtml = renderPaginationLinks($totalRecords, $page, $limit, [
-    'limit' => $limit,
+    'limit' => $limit === 9999 ? 'all' : $limit,
     'search' => $search,
-    'property_id' => $propertyId,
+    'property_id' => $propertyFilter,
 ]);
 
 renderHeader('Tenants');
@@ -77,8 +86,8 @@ renderHeader('Tenants');
     <form method="get" class="control-bar">
         <label>Limit
             <select name="limit">
-                <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
-                    <option value="<?= $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption ?></option>
+                <?php foreach ([5, 10, 15, 20, 9999] as $limitOption): ?>
+                    <option value="<?= $limitOption === 9999 ? 'all' : $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
                 <?php endforeach; ?>
             </select>
         </label>
@@ -87,21 +96,24 @@ renderHeader('Tenants');
         </label>
         <label>Property
             <select name="property_id">
-                <option value="0">All Properties</option>
+                <option value="all" <?= $propertyFilter === 'all' ? 'selected' : '' ?>>All Properties</option>
                 <?php foreach ($properties as $property): ?>
-                    <option value="<?= (int) $property['id'] ?>" <?= $propertyId === (int) $property['id'] ? 'selected' : '' ?>>
+                    <option value="<?= (int) $property['id'] ?>" <?= $propertyFilter === (string) $property['id'] ? 'selected' : '' ?>>
                         <?= h($property['name']) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
         </label>
         <button type="submit">Apply</button>
+        <a class="button" href="/public/tenants.php">Clear Filters</a>
     </form>
+    <p>Showing <?= $showFrom ?> to <?= $showTo ?> of <?= $totalRecords ?> Records</p>
     <table class="sortable">
-        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Property</th><th>Unit</th></tr></thead>
+        <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Property</th><th>Unit</th></tr></thead>
         <tbody>
         <?php foreach ($tenants as $tenant): ?>
             <tr>
+                <td><?= $rowNumber++ ?></td>
                 <td><?= h($tenant['name']) ?></td>
                 <td><?= h($tenant['phone']) ?></td>
                 <td><?= h($tenant['email']) ?></td>
