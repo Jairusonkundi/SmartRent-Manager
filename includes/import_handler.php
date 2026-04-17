@@ -98,8 +98,8 @@ $insertRentSchedule = $pdo->prepare(
      ON DUPLICATE KEY UPDATE expected_rent = VALUES(expected_rent), status = VALUES(status)'
 );
 $insertPayment = $pdo->prepare(
-    'INSERT INTO payments (tenant_id, amount_paid, payment_date, month, payment_status)
-     VALUES (:tenant_id, :amount_paid, :payment_date, :month, :payment_status)'
+    'INSERT INTO payments (tenant_id, monthly_rent, amount_paid, payment_date, month, payment_status)
+     VALUES (:tenant_id, :monthly_rent, :amount_paid, :payment_date, :month, :payment_status)'
 );
 
 try {
@@ -205,6 +205,7 @@ try {
 
         $insertPayment->execute([
             'tenant_id' => $tenantId,
+            'monthly_rent' => $monthlyRentDecimal,
             'amount_paid' => $amountPaidDecimal,
             'payment_date' => $paymentDate,
             'month' => $month,

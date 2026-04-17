@@ -10,29 +10,16 @@ require_once __DIR__ . '/../modules/DashboardService.php';
 
 requireAuth();
 
-$month = monthStart((string) ($_GET['month'] ?? date('Y-m-01')));
 $pdo = Database::connection();
 
 $summaryStmt = $pdo->prepare(
     "SELECT
-        COALESCE(SUM(monthly_totals.Monthly_Rent), 0) AS total_expected,
-        COALESCE(SUM(monthly_totals.Amount_Paid), 0) AS total_paid,
-        COALESCE(SUM(monthly_totals.Monthly_Rent - monthly_totals.Amount_Paid), 0) AS total_outstanding
-    FROM (
-        SELECT
-            rs.tenant_id,
-            rs.expected_rent AS Monthly_Rent,
-            COALESCE((
-                SELECT SUM(p.amount_paid)
-                FROM payments p
-                WHERE p.tenant_id = rs.tenant_id
-                  AND p.month = rs.month
-            ), 0) AS Amount_Paid
-        FROM rent_schedule rs
-        WHERE rs.month = :month
-    ) AS monthly_totals"
+        COALESCE(SUM(monthly_rent), 0) AS total_expected,
+        COALESCE(SUM(amount_paid), 0) AS total_paid,
+        COALESCE(SUM(monthly_rent - amount_paid), 0) AS total_outstanding
+    FROM payments"
 );
-$summaryStmt->execute(['month' => $month]);
+$summaryStmt->execute([]);
 $summaryRow = $summaryStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0, 'total_outstanding' => 0];
 
 $expected = (float) $summaryRow['total_expected'];
@@ -48,7 +35,7 @@ $summary = [
 
 $service = new DashboardService();
 $trend = $service->monthlyTrend();
-$distribution = $service->paymentStatusDistribution($month);
+$distribution = $service->paymentStatusDistribution(monthStart((string) ($_GET['month'] ?? date('Y-m-01'))));
 
 renderHeader('Dashboard');
 ?>
