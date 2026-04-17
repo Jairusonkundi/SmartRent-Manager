@@ -18,19 +18,25 @@ function formatCurrency(float $amount): string
     return 'KSH ' . number_format($amount, 0, '.', ',');
 }
 
-function flash(string $type, string $message): void
+function setFlash(string $type, string $message): void
 {
     $_SESSION['flash'] = ['type' => $type, 'message' => $message];
 }
 
+function flash(string $type, string $message): void
+{
+    // Backward-compatible alias for existing callers.
+    setFlash($type, $message);
+}
+
 function getFlash(): ?array
 {
-    if (!isset($_SESSION['flash'])) {
-        return null;
+    if (isset($_SESSION['flash'])) {
+        $flash = $_SESSION['flash'];
+        unset($_SESSION['flash']);
+
+        return is_array($flash) ? $flash : null;
     }
 
-    $flash = $_SESSION['flash'];
-    unset($_SESSION['flash']);
-
-    return $flash;
+    return null;
 }

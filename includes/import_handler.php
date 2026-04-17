@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-    flash('error', 'Please select a valid CSV file to upload.');
+    setFlash('danger', 'Please select a valid CSV file to upload.');
     header('Location: /public/upload_csv.php');
     exit;
 }
@@ -23,7 +23,7 @@ $csvPath = $_FILES['csv_file']['tmp_name'];
 $handle = fopen($csvPath, 'rb');
 
 if ($handle === false) {
-    flash('error', 'Unable to read the uploaded file.');
+    setFlash('danger', 'Unable to read the uploaded file.');
     header('Location: /public/upload_csv.php');
     exit;
 }
@@ -31,7 +31,7 @@ if ($handle === false) {
 $headers = fgetcsv($handle);
 if ($headers === false) {
     fclose($handle);
-    flash('error', 'The CSV appears to be empty.');
+    setFlash('danger', 'The CSV appears to be empty.');
     header('Location: /public/upload_csv.php');
     exit;
 }
@@ -56,7 +56,7 @@ foreach ($headers as $idx => $header) {
 foreach ($requiredHeaders as $requiredHeader) {
     if (!array_key_exists($requiredHeader, $headerMap)) {
         fclose($handle);
-        flash('error', "Missing required CSV header: {$requiredHeader}");
+        setFlash('danger', "Missing required CSV header: {$requiredHeader}");
         header('Location: /public/upload_csv.php');
         exit;
     }
@@ -222,12 +222,12 @@ try {
     }
 
     fclose($handle);
-    flash('error', 'Import failed: ' . $exception->getMessage());
+    setFlash('danger', 'Error importing data.');
     header('Location: /public/upload_csv.php');
     exit;
 }
 
 fclose($handle);
-flash('success', "CSV import completed successfully. Rows processed: {$processed}.");
+setFlash('success', 'Data imported successfully!');
 header('Location: /public/dashboard.php');
 exit;
