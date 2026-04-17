@@ -5,18 +5,50 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/layout.php';
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../modules/DashboardService.php';
 
 requireAuth();
 
-$month = $_GET['month'] ?? date('Y-m-01');
+$month = monthStart((string) ($_GET['month'] ?? date('Y-m-01')));
+$pdo = Database::connection();
+
+$summaryStmt = $pdo->prepare(
+    "SELECT
+        COALESCE((
+            SELECT SUM(rs.expected_rent)
+            FROM rent_schedule rs
+            WHERE rs.month = :month
+        ), 0) AS total_expected,
+        COALESCE((
+            SELECT SUM(p.amount_paid)
+            FROM payments p
+            WHERE p.month = :month
+        ), 0) AS total_paid"
+);
+$summaryStmt->execute(['month' => $month]);
+$summaryRow = $summaryStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0];
+
+$expected = (float) $summaryRow['total_expected'];
+$paid = (float) $summaryRow['total_paid'];
+$outstanding = max($expected - $paid, 0);
+
+$summary = [
+    'expected' => $expected,
+    'paid' => $paid,
+    'outstanding' => $outstanding,
+    'collection_percent' => $expected > 0 ? round(($paid / $expected) * 100, 2) : 0,
+];
+
 $service = new DashboardService();
-$summary = $service->summary($month);
 $trend = $service->monthlyTrend();
 $distribution = $service->paymentStatusDistribution($month);
 
 renderHeader('Dashboard');
 ?>
+<section class="card upload-cta">
+    <a class="button-link" href="/public/upload_csv.php">Upload Monthly Data</a>
+</section>
 <section class="cards">
     <article class="card metric">
         <span class="metric-label">Total Expected Rent:</span>

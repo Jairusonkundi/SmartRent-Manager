@@ -160,3 +160,31 @@ th { cursor: pointer; background: #f9fafb; }
     padding: 32px;
   }
 }
+
+
+.button-link {
+  display: inline-block;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(120deg, var(--primary), var(--primary-accent));
+  font-weight: 600;
+}
+.button-link:hover { filter: brightness(1.04); }
+.upload-card {
+  max-width: 700px;
+  background: linear-gradient(160deg, #ffffff 0%, #f2f8ff 100%);
+}
+.upload-help {
+  color: var(--muted);
+  margin-top: 0;
+}
+.upload-form {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+}
+.upload-cta {
+  margin-bottom: 16px;
+}
