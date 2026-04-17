@@ -30,28 +30,32 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$where = ['1=1', "rs.month <= CURRENT_DATE", "rs.status <> 'paid'"];
+$whereClauses = ['1=1', "rs.month <= CURRENT_DATE", "rs.status <> 'paid'"];
 $params = [];
+$amountPaidExpr = 'COALESCE(SUM(p.amount_paid), 0)';
+$balanceExpr = "(rs.expected_rent - {$amountPaidExpr})";
+$rentStatusExpr = "CASE
+            WHEN {$balanceExpr} <= 0 THEN 'Paid'
+            WHEN {$amountPaidExpr} = 0 THEN 'Unpaid'
+            ELSE 'Partial'
+       END";
 
 if ($search !== '') {
-    $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
+    $whereClauses[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
     $params[':search'] = '%' . $search . '%';
 }
 
 if ($propertyFilter !== 'all') {
-    $where[] = 'pr.id = :property_id';
+    $whereClauses[] = 'pr.id = :property_id';
     $params[':property_id'] = (int) $propertyFilter;
 }
 
 if ($statusFilter !== 'all') {
-    $where[] = "CASE WHEN COALESCE(SUM(p.amount_paid),0) = 0 THEN 'Unpaid'
-            WHEN COALESCE(SUM(p.amount_paid),0) < rs.expected_rent THEN 'Partial'
-            ELSE 'Paid'
-       END = :rent_status";
-    $params[':rent_status'] = $statusFilter;
+    $whereClauses[] = "{$rentStatusExpr} = :status";
+    $params[':status'] = $statusFilter;
 }
 
-$whereSql = implode(' AND ', $where);
+$whereSql = implode(' AND ', $whereClauses);
 
 $baseFrom = "
 FROM rent_schedule rs
@@ -79,12 +83,9 @@ SELECT t.name,
        rs.expected_rent,
        u.unit_number,
        pr.name AS property_name,
-       COALESCE(SUM(p.amount_paid),0) AS paid,
-       rs.expected_rent - COALESCE(SUM(p.amount_paid),0) AS balance,
-       CASE WHEN COALESCE(SUM(p.amount_paid),0) = 0 THEN 'Unpaid'
-            WHEN COALESCE(SUM(p.amount_paid),0) < rs.expected_rent THEN 'Partial'
-            ELSE 'Paid'
-       END AS rent_status,
+       {$amountPaidExpr} AS paid,
+       {$balanceExpr} AS balance,
+       {$rentStatusExpr} AS rent_status,
        CASE WHEN COALESCE(MAX(p.payment_date), '9999-12-31') > rs.due_date THEN 'Late' ELSE 'On Time' END AS timing_status
 {$baseFrom}
 ORDER BY balance DESC, rs.month ASC
@@ -99,12 +100,10 @@ $stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
 $stmt->execute();
 $arrears = $stmt->fetchAll();
 
-$showFrom = $totalRecords > 0 ? (($page - 1) * $limit) + 1 : 0;
-$showTo = $totalRecords > 0 ? min($offset + count($arrears), $totalRecords) : 0;
-$rowNumber = $showFrom;
+$currentCount = count($arrears);
 
 $paginationHtml = renderPaginationLinks($totalRecords, $page, $limit, [
-    'limit' => $limit === 9999 ? 'all' : $limit,
+    'limit' => $limit,
     'search' => $search,
     'property_id' => $propertyFilter,
     'status' => $statusFilter,
@@ -118,7 +117,7 @@ renderHeader('Arrears');
         <label>Limit
             <select name="limit">
                 <?php foreach ([5, 10, 15, 20, 9999] as $limitOption): ?>
-                    <option value="<?= $limitOption === 9999 ? 'all' : $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
+                    <option value="<?= $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
                 <?php endforeach; ?>
             </select>
         </label>
@@ -146,13 +145,14 @@ renderHeader('Arrears');
         <button type="submit">Apply</button>
         <a class="button" href="/public/arrears.php">Clear Filters</a>
     </form>
-    <p>Showing <?= $showFrom ?> to <?= $showTo ?> of <?= $totalRecords ?> Records</p>
+    <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
     <table class="sortable">
         <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th><th>Timing</th></tr></thead>
         <tbody>
-            <?php foreach ($arrears as $row): ?>
+            <?php foreach ($arrears as $index => $row): ?>
+                <?php $rowNumber = $offset + $index + 1; ?>
                 <tr>
-                    <td><?= $rowNumber++ ?></td>
+                    <td><?= $rowNumber ?></td>
                     <td><?= h($row['name']) ?></td>
                     <td><?= h($row['property_name']) ?></td>
                     <td><?= h($row['unit_number']) ?></td>
