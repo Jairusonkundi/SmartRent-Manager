@@ -46,3 +46,53 @@ function getFlash(): ?array
 
     return null;
 }
+
+function getPaginationState(array $allowedLimits = [5, 10, 15, 20], int $defaultLimit = 10): array
+{
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $limit = (int) ($_GET['limit'] ?? $defaultLimit);
+
+    if (!in_array($limit, $allowedLimits, true)) {
+        $limit = $defaultLimit;
+    }
+
+    return [
+        'page' => $page,
+        'limit' => $limit,
+        'offset' => ($page - 1) * $limit,
+    ];
+}
+
+function renderPaginationLinks(int $totalRecords, int $page, int $limit, array $persistedParams = []): string
+{
+    $totalPages = (int) ceil($totalRecords / max(1, $limit));
+
+    if ($totalPages <= 1) {
+        return '';
+    }
+
+    $buildLink = static function (int $targetPage) use ($persistedParams): string {
+        $params = array_merge($persistedParams, ['page' => $targetPage]);
+
+        return '?' . http_build_query($params);
+    };
+
+    $html = '<nav class="pagination" aria-label="Pagination"><ul>';
+
+    if ($page > 1) {
+        $html .= '<li><a href="' . h($buildLink($page - 1)) . '">Previous</a></li>';
+    }
+
+    for ($i = 1; $i <= $totalPages; $i++) {
+        $activeClass = $i === $page ? ' class="active"' : '';
+        $html .= '<li' . $activeClass . '><a href="' . h($buildLink($i)) . '">' . $i . '</a></li>';
+    }
+
+    if ($page < $totalPages) {
+        $html .= '<li><a href="' . h($buildLink($page + 1)) . '">Next</a></li>';
+    }
+
+    $html .= '</ul></nav>';
+
+    return $html;
+}

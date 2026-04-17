@@ -28,14 +28,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+$pagination = getPaginationState();
+$page = $pagination['page'];
+$limit = $pagination['limit'];
+$offset = $pagination['offset'];
+$search = trim((string) ($_GET['search'] ?? ''));
+$propertyId = (int) ($_GET['property_id'] ?? 0);
+$statusFilter = (string) ($_GET['status'] ?? '');
+$allowedStatuses = ['Paid', 'Partial', 'Unpaid'];
+
+if (!in_array($statusFilter, $allowedStatuses, true)) {
+    $statusFilter = '';
+}
+
 $tenants = $pdo->query("SELECT id, name FROM tenants WHERE status='active' ORDER BY name")->fetchAll();
-$recentPayments = $pdo->query(
-    "SELECT t.name, p.amount_paid, p.payment_date, p.month
-     FROM payments p
-     JOIN tenants t ON t.id = p.tenant_id
-     ORDER BY p.created_at DESC
-     LIMIT 20"
-)->fetchAll();
+$properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
+
+$where = ['1=1'];
+$params = [];
+
+if ($search !== '') {
+    $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
+    $params[':search'] = '%' . $search . '%';
+}
+
+if ($propertyId > 0) {
+    $where[] = 'pr.id = :property_id';
+    $params[':property_id'] = $propertyId;
+}
+
+if ($statusFilter !== '') {
+    $where[] = "CASE
+            WHEN COALESCE(SUM(pm.amount_paid), 0) = 0 THEN 'Unpaid'
+            WHEN COALESCE(SUM(pm.amount_paid), 0) < rs.expected_rent THEN 'Partial'
+            ELSE 'Paid'
+        END = :payment_status";
+    $params[':payment_status'] = $statusFilter;
+}
+
+$whereSql = implode(' AND ', $where);
+
+$baseFrom = "
+    FROM rent_schedule rs
+    JOIN tenants t ON t.id = rs.tenant_id
+    JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
+    JOIN units u ON u.id = l.unit_id
+    JOIN properties pr ON pr.id = u.property_id
+    LEFT JOIN payments pm ON pm.tenant_id = rs.tenant_id AND pm.month = rs.month
+    WHERE {$whereSql}
+    GROUP BY rs.id, t.name, rs.month, rs.expected_rent, pr.name, u.unit_number
+";
+
+$countSql = "SELECT COUNT(*) FROM (SELECT rs.id {$baseFrom}) AS counted_rows";
+$countStmt = $pdo->prepare($countSql);
+foreach ($params as $key => $value) {
+    $countStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+}
+$countStmt->execute();
+$totalRecords = (int) $countStmt->fetchColumn();
+
+$paymentsSql = "SELECT
+        t.name,
+        rs.month,
+        rs.expected_rent,
+        COALESCE(SUM(pm.amount_paid), 0) AS amount_paid,
+        MAX(pm.payment_date) AS payment_date,
+        pr.name AS property_name,
+        u.unit_number,
+        CASE
+            WHEN COALESCE(SUM(pm.amount_paid), 0) = 0 THEN 'Unpaid'
+            WHEN COALESCE(SUM(pm.amount_paid), 0) < rs.expected_rent THEN 'Partial'
+            ELSE 'Paid'
+        END AS payment_status
+    {$baseFrom}
+    ORDER BY rs.month DESC, t.name ASC
+    LIMIT :limit OFFSET :offset";
+$paymentsStmt = $pdo->prepare($paymentsSql);
+foreach ($params as $key => $value) {
+    $paymentsStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+}
+$paymentsStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+$paymentsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$paymentsStmt->execute();
+$recentPayments = $paymentsStmt->fetchAll();
+
+$paginationHtml = renderPaginationLinks($totalRecords, $page, $limit, [
+    'limit' => $limit,
+    'search' => $search,
+    'property_id' => $propertyId,
+    'status' => $statusFilter,
+]);
 
 renderHeader('Payments');
 ?>
@@ -58,20 +140,53 @@ renderHeader('Payments');
 </section>
 <section class="card">
     <h3>Recent Payments</h3>
+    <form method="get" class="control-bar">
+        <label>Limit
+            <select name="limit">
+                <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
+                    <option value="<?= $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>Search
+            <input type="text" name="search" value="<?= h($search) ?>" placeholder="Tenant or unit number">
+        </label>
+        <label>Property
+            <select name="property_id">
+                <option value="0">All Properties</option>
+                <?php foreach ($properties as $property): ?>
+                    <option value="<?= (int) $property['id'] ?>" <?= $propertyId === (int) $property['id'] ? 'selected' : '' ?>>
+                        <?= h($property['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>Status
+            <select name="status">
+                <option value="">All Statuses</option>
+                <?php foreach ($allowedStatuses as $statusOption): ?>
+                    <option value="<?= h($statusOption) ?>" <?= $statusFilter === $statusOption ? 'selected' : '' ?>><?= h($statusOption) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <button type="submit">Apply</button>
+    </form>
     <table class="sortable">
-        <thead><tr><th>Tenant</th><th>Amount</th><th>Payment Date</th><th>Month</th><th>Payment Status</th></tr></thead>
+        <thead><tr><th>Tenant</th><th>Property</th><th>Unit</th><th>Amount</th><th>Payment Date</th><th>Month</th><th>Payment Status</th></tr></thead>
         <tbody>
             <?php foreach ($recentPayments as $p): ?>
-                <?php $status = ((int) date('d', strtotime($p['payment_date'])) <= 10) ? 'On Time' : 'Late'; ?>
                 <tr>
                     <td><?= h($p['name']) ?></td>
+                    <td><?= h($p['property_name']) ?></td>
+                    <td><?= h($p['unit_number']) ?></td>
                     <td><?= formatKsh((float) $p['amount_paid']) ?></td>
-                    <td><?= h($p['payment_date']) ?></td>
+                    <td><?= $p['payment_date'] ? h($p['payment_date']) : '-' ?></td>
                     <td><?= date('M Y', strtotime($p['month'])) ?></td>
-                    <td><span class="badge <?= $status === 'On Time' ? 'paid' : 'unpaid' ?>"><?= $status ?></span></td>
+                    <td><span class="badge <?= strtolower($p['payment_status']) === 'paid' ? 'paid' : (strtolower($p['payment_status']) === 'partial' ? 'partial' : 'unpaid') ?>"><?= h($p['payment_status']) ?></span></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?= $paginationHtml ?>
 </section>
 <?php renderFooter(); ?>

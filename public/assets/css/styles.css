@@ -37,6 +37,38 @@ body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); 
 .alert.error { background: #fee2e2; color: #991b1b; }
 .grid-form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); align-items: end; }
 label { display: grid; gap: 6px; font-size: .9rem; color: var(--muted); }
+
+.control-bar {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.pagination ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.pagination a {
+  text-decoration: none;
+  color: var(--primary);
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: inline-block;
+}
+
+.pagination li.active a {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
 input, select, button { padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
 button {
   background: linear-gradient(120deg, var(--primary), var(--primary-accent));
