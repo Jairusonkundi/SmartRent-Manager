@@ -115,10 +115,15 @@ try {
         $tenantName = trim((string) ($row[$headerMap['Tenant_Name']] ?? ''));
         $tenantEmail = trim((string) ($row[$headerMap['Tenant_Email']] ?? ''));
         $tenantPhone = trim((string) ($row[$headerMap['Tenant_Phone']] ?? ''));
-        $monthlyRent = (float) trim((string) ($row[$headerMap['Monthly_Rent']] ?? '0'));
+        $monthlyRentRaw = trim((string) ($row[$headerMap['Monthly_Rent']] ?? '0'));
         $leaseStartRaw = trim((string) ($row[$headerMap['Lease_Start']] ?? ''));
         $paymentDateRaw = trim((string) ($row[$headerMap['Payment_Date']] ?? ''));
-        $amountPaid = (float) trim((string) ($row[$headerMap['Amount_Paid']] ?? '0'));
+        $amountPaidRaw = trim((string) ($row[$headerMap['Amount_Paid']] ?? '0'));
+
+        $monthlyRentNumeric = preg_replace('/[^\d.\-]/', '', str_replace(',', '', $monthlyRentRaw)) ?: '0';
+        $amountPaidNumeric = preg_replace('/[^\d.\-]/', '', str_replace(',', '', $amountPaidRaw)) ?: '0';
+        $monthlyRent = (float) $monthlyRentNumeric;
+        $amountPaid = (float) $amountPaidNumeric;
 
         if ($propertyName === '' || $unitNumber === '' || $tenantName === '' || $monthlyRent <= 0) {
             continue;
@@ -134,7 +139,7 @@ try {
         $dueDate = date('Y-m-10', strtotime($paymentDate));
         $paymentStatus = ((int) date('d', strtotime($paymentDate)) > 10) ? 'Late' : 'On Time';
 
-        // Store numeric values as decimals (DECIMAL columns in DB) for currency formatting downstream.
+        // Normalize imported values to decimal strings so DB DECIMAL math remains reliable.
         $monthlyRentDecimal = number_format($monthlyRent, 2, '.', '');
         $amountPaidDecimal = number_format($amountPaid, 2, '.', '');
         $balance = (float) $monthlyRentDecimal - (float) $amountPaidDecimal;
