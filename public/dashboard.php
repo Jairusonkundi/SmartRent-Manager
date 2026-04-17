@@ -15,23 +15,29 @@ $pdo = Database::connection();
 
 $summaryStmt = $pdo->prepare(
     "SELECT
-        COALESCE((
-            SELECT SUM(rs.expected_rent)
-            FROM rent_schedule rs
-            WHERE rs.month = :month
-        ), 0) AS total_expected,
-        COALESCE((
-            SELECT SUM(p.amount_paid)
-            FROM payments p
-            WHERE p.month = :month
-        ), 0) AS total_paid"
+        COALESCE(SUM(monthly_totals.Monthly_Rent), 0) AS total_expected,
+        COALESCE(SUM(monthly_totals.Amount_Paid), 0) AS total_paid,
+        COALESCE(SUM(monthly_totals.Monthly_Rent - monthly_totals.Amount_Paid), 0) AS total_outstanding
+    FROM (
+        SELECT
+            rs.tenant_id,
+            rs.expected_rent AS Monthly_Rent,
+            COALESCE((
+                SELECT SUM(p.amount_paid)
+                FROM payments p
+                WHERE p.tenant_id = rs.tenant_id
+                  AND p.month = rs.month
+            ), 0) AS Amount_Paid
+        FROM rent_schedule rs
+        WHERE rs.month = :month
+    ) AS monthly_totals"
 );
 $summaryStmt->execute(['month' => $month]);
-$summaryRow = $summaryStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0];
+$summaryRow = $summaryStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0, 'total_outstanding' => 0];
 
 $expected = (float) $summaryRow['total_expected'];
 $paid = (float) $summaryRow['total_paid'];
-$outstanding = max($expected - $paid, 0);
+$outstanding = max((float) $summaryRow['total_outstanding'], 0);
 
 $summary = [
     'expected' => $expected,
