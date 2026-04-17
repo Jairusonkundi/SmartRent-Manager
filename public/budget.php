@@ -22,15 +22,15 @@ renderHeader('Budget');
 <section class="cards">
     <article class="card metric">
         <span class="metric-label">Total Expected Rent:</span>
-        <strong><span class="card-value"><?= formatCurrency($totalExpected) ?></span></strong>
+        <strong><span class="card-value"><?= formatKsh($totalExpected) ?></span></strong>
     </article>
     <article class="card metric paid">
         <span class="metric-label">Total Income:</span>
-        <strong><span class="card-value"><?= formatCurrency($totalPaid) ?></span></strong>
+        <strong><span class="card-value"><?= formatKsh($totalPaid) ?></span></strong>
     </article>
     <article class="card metric unpaid">
         <span class="metric-label">Outstanding Rent:</span>
-        <strong><span class="card-value"><?= formatCurrency($totalOutstanding) ?></span></strong>
+        <strong><span class="card-value"><?= formatKsh($totalOutstanding) ?></span></strong>
     </article>
 </section>
 <section class="card">
@@ -41,9 +41,9 @@ renderHeader('Budget');
             <?php foreach ($monthly as $row): ?>
                 <tr>
                     <td><?= h($row['month_key']) ?></td>
-                    <td><?= formatCurrency((float) $row['expected']) ?></td>
-                    <td class="text-paid"><?= formatCurrency((float) $row['paid']) ?></td>
-                    <td class="text-unpaid"><?= formatCurrency((float) $row['outstanding']) ?></td>
+                    <td><?= formatKsh((float) $row['expected']) ?></td>
+                    <td class="text-paid"><?= formatKsh((float) $row['paid']) ?></td>
+                    <td class="text-unpaid"><?= formatKsh((float) $row['outstanding']) ?></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>

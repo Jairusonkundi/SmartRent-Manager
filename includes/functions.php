@@ -12,10 +12,16 @@ function monthStart(string $month): string
     return (new DateTimeImmutable($month))->modify('first day of this month')->format('Y-m-d');
 }
 
-function formatCurrency(float $amount): string
+function formatKsh(float $amount): string
 {
     // Keep a fixed space after the currency code for readable label/value output.
     return 'KSH ' . number_format($amount, 0, '.', ',');
+}
+
+function formatCurrency(float $amount): string
+{
+    // Backward-compatible alias for existing callers.
+    return formatKsh($amount);
 }
 
 function setFlash(string $type, string $message): void

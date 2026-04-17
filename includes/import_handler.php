@@ -50,7 +50,12 @@ $requiredHeaders = [
 
 $headerMap = [];
 foreach ($headers as $idx => $header) {
-    $headerMap[trim((string) $header)] = $idx;
+    $normalizedHeader = preg_replace('/[\x00-\x1F\x80-\xFF]/', '', trim((string) $header));
+    if ($normalizedHeader === null || $normalizedHeader == '') {
+        continue;
+    }
+
+    $headerMap[$normalizedHeader] = $idx;
 }
 
 foreach ($requiredHeaders as $requiredHeader) {

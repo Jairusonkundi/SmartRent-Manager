@@ -19,7 +19,7 @@ $summaryStmt = $pdo->prepare(
         COALESCE(SUM(monthly_rent - amount_paid), 0) AS total_outstanding
     FROM payments"
 );
-$summaryStmt->execute([]);
+$summaryStmt->execute();
 $summaryRow = $summaryStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0, 'total_outstanding' => 0];
 
 $expected = (float) $summaryRow['total_expected'];
@@ -45,15 +45,15 @@ renderHeader('Dashboard');
 <section class="cards">
     <article class="card metric">
         <span class="metric-label">Total Expected Rent:</span>
-        <strong><span class="card-value"><?= formatCurrency((float) $summary['expected']) ?></span></strong>
+        <strong><span class="card-value"><?= formatKsh((float) $summary['expected']) ?></span></strong>
     </article>
     <article class="card metric paid">
         <span class="metric-label">Total Paid:</span>
-        <strong><span class="card-value"><?= formatCurrency((float) $summary['paid']) ?></span></strong>
+        <strong><span class="card-value"><?= formatKsh((float) $summary['paid']) ?></span></strong>
     </article>
     <article class="card metric unpaid">
         <span class="metric-label">Outstanding Rent:</span>
-        <strong><span class="card-value"><?= formatCurrency((float) $summary['outstanding']) ?></span></strong>
+        <strong><span class="card-value"><?= formatKsh((float) $summary['outstanding']) ?></span></strong>
     </article>
     <article class="card metric">
         <span class="metric-label">Collection %:</span>

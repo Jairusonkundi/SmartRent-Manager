@@ -6,7 +6,7 @@ require_once __DIR__ . '/functions.php';
 
 function renderHeader(string $title): void
 {
-    $flash = getFlash();
+    $flash = function_exists('getFlash') ? getFlash() : null;
     ?>
 <!doctype html>
 <html lang="en">
