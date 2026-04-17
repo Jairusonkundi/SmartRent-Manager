@@ -27,9 +27,9 @@ foreach ($rows as $row) {
     $tableRows .= sprintf(
         '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>',
         htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'),
-        formatCurrency((float) $row['expected_rent']),
-        formatCurrency((float) $row['paid']),
-        formatCurrency((float) $row['outstanding'])
+        formatKsh((float) $row['expected_rent']),
+        formatKsh((float) $row['paid']),
+        formatKsh((float) $row['outstanding'])
     );
 }
 

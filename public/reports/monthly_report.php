@@ -16,9 +16,9 @@ $summary = $service->summary($month);
 $html = sprintf(
     '<h1>Monthly Financial Report</h1><p>Month: %s</p><ul><li>Expected: %s</li><li>Paid: %s</li><li>Outstanding: %s</li><li>Collection: %0.2f%%</li></ul>',
     htmlspecialchars(date('F Y', strtotime($month)), ENT_QUOTES, 'UTF-8'),
-    formatCurrency((float) $summary['expected']),
-    formatCurrency((float) $summary['paid']),
-    formatCurrency((float) $summary['outstanding']),
+    formatKsh((float) $summary['expected']),
+    formatKsh((float) $summary['paid']),
+    formatKsh((float) $summary['outstanding']),
     $summary['collection_percent']
 );
 
