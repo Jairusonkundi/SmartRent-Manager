@@ -12,6 +12,11 @@ function monthStart(string $month): string
     return (new DateTimeImmutable($month))->modify('first day of this month')->format('Y-m-d');
 }
 
+function formatCurrency(float $amount): string
+{
+    return 'KSH ' . number_format($amount, 0, '.', ',');
+}
+
 function flash(string $type, string $message): void
 {
     $_SESSION['flash'] = ['type' => $type, 'message' => $message];

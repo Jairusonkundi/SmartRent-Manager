@@ -18,9 +18,9 @@ $distribution = $service->paymentStatusDistribution($month);
 renderHeader('Dashboard');
 ?>
 <section class="cards">
-    <article class="card metric"><span>Total Expected</span><strong>$<?= number_format($summary['expected'], 2) ?></strong></article>
-    <article class="card metric paid"><span>Total Paid</span><strong>$<?= number_format($summary['paid'], 2) ?></strong></article>
-    <article class="card metric unpaid"><span>Outstanding</span><strong>$<?= number_format($summary['outstanding'], 2) ?></strong></article>
+    <article class="card metric"><span>Total Expected</span><strong><?= formatCurrency((float) $summary['expected']) ?></strong></article>
+    <article class="card metric paid"><span>Total Paid</span><strong><?= formatCurrency((float) $summary['paid']) ?></strong></article>
+    <article class="card metric unpaid"><span>Outstanding</span><strong><?= formatCurrency((float) $summary['outstanding']) ?></strong></article>
     <article class="card metric"><span>Collection %</span><strong><?= number_format($summary['collection_percent'], 2) ?>%</strong></article>
 </section>
 <section class="charts-grid">

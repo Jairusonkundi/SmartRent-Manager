@@ -42,9 +42,9 @@ renderHeader('Arrears');
                 <tr>
                     <td><?= h($row['name']) ?></td>
                     <td><?= h(date('M Y', strtotime($row['month']))) ?></td>
-                    <td>$<?= number_format((float) $row['expected_rent'], 2) ?></td>
-                    <td>$<?= number_format((float) $row['paid'], 2) ?></td>
-                    <td class="text-unpaid">$<?= number_format((float) $row['balance'], 2) ?></td>
+                    <td><?= formatCurrency((float) $row['expected_rent']) ?></td>
+                    <td><?= formatCurrency((float) $row['paid']) ?></td>
+                    <td class="text-unpaid"><?= formatCurrency((float) $row['balance']) ?></td>
                     <td><span class="badge <?= strtolower($row['rent_status']) === 'partial' ? 'partial' : 'unpaid' ?>"><?= h($row['rent_status']) ?></span></td>
                     <td><span class="badge <?= strtolower($row['timing_status']) === 'late' ? 'unpaid' : 'paid' ?>"><?= h($row['timing_status']) ?></span></td>
                 </tr>

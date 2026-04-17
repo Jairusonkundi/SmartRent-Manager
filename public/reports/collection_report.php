@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/functions.php';
 
 use Dompdf\Dompdf;
 
@@ -24,11 +25,11 @@ $rows = $stmt->fetchAll();
 $tableRows = '';
 foreach ($rows as $row) {
     $tableRows .= sprintf(
-        '<tr><td>%s</td><td>$%0.2f</td><td>$%0.2f</td><td>$%0.2f</td></tr>',
+        '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>',
         htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'),
-        (float) $row['expected_rent'],
-        (float) $row['paid'],
-        (float) $row['outstanding']
+        formatCurrency((float) $row['expected_rent']),
+        formatCurrency((float) $row['paid']),
+        formatCurrency((float) $row['outstanding'])
     );
 }
 

@@ -65,7 +65,7 @@ renderHeader('Payments');
                 <?php $status = ((int) date('d', strtotime($p['payment_date'])) <= 10) ? 'On Time' : 'Late'; ?>
                 <tr>
                     <td><?= h($p['name']) ?></td>
-                    <td>$<?= number_format((float) $p['amount_paid'], 2) ?></td>
+                    <td><?= formatCurrency((float) $p['amount_paid']) ?></td>
                     <td><?= h($p['payment_date']) ?></td>
                     <td><?= date('M Y', strtotime($p['month'])) ?></td>
                     <td><span class="badge <?= $status === 'On Time' ? 'paid' : 'unpaid' ?>"><?= $status ?></span></td>

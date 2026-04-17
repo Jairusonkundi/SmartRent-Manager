@@ -1,5 +1,6 @@
 CREATE DATABASE IF NOT EXISTS smartrent_manager CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE smartrent_manager;
+-- Monetary amounts are recorded in Kenya Shillings (KSH).
 
 CREATE TABLE users (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +63,7 @@ CREATE TABLE leases (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     tenant_id BIGINT UNSIGNED NOT NULL,
     unit_id BIGINT UNSIGNED NOT NULL,
-    rent_amount DECIMAL(12,2) NOT NULL,
+    rent_amount DECIMAL(12,2) NOT NULL COMMENT 'KSH',
     start_date DATE NOT NULL,
     end_date DATE DEFAULT NULL,
     status ENUM('active','terminated') NOT NULL DEFAULT 'active',
@@ -79,7 +80,7 @@ CREATE TABLE rent_schedule (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     tenant_id BIGINT UNSIGNED NOT NULL,
     month DATE NOT NULL,
-    expected_rent DECIMAL(12,2) NOT NULL,
+    expected_rent DECIMAL(12,2) NOT NULL COMMENT 'KSH',
     due_date DATE NOT NULL,
     status ENUM('paid','partial','unpaid') NOT NULL DEFAULT 'unpaid',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -93,7 +94,7 @@ CREATE TABLE rent_schedule (
 CREATE TABLE payments (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     tenant_id BIGINT UNSIGNED NOT NULL,
-    amount_paid DECIMAL(12,2) NOT NULL,
+    amount_paid DECIMAL(12,2) NOT NULL COMMENT 'KSH',
     payment_date DATE NOT NULL,
     month DATE NOT NULL,
     payment_channel ENUM('bank_transfer','cash','cheque') NOT NULL DEFAULT 'bank_transfer',
@@ -111,7 +112,7 @@ CREATE TABLE expenses (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     property_id BIGINT UNSIGNED NOT NULL,
     category VARCHAR(80) NOT NULL,
-    amount DECIMAL(12,2) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL COMMENT 'KSH',
     date DATE NOT NULL,
     note VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
