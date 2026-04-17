@@ -47,11 +47,11 @@ $flash = getFlash();
             <p class="login-subtitle">Sign in to continue to your manager workspace.</p>
             <?php if ($flash): ?><div class="alert error"><?= h($flash['message']) ?></div><?php endif; ?>
 
-            <label>Manager Email
+            <label>Email
                 <input type="email" name="email" autocomplete="email" required>
             </label>
 
-            <label>Security Password
+            <label>Password
                 <input type="password" name="password" autocomplete="current-password" required>
             </label>
 
