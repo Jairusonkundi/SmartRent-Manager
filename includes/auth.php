@@ -21,13 +21,13 @@ function requireAuth(): void
     }
 }
 
-function login(string $email, string $password): bool
+function login(string $username, string $password): bool
 {
     startSession();
     $pdo = Database::connection();
 
-    $stmt = $pdo->prepare('SELECT id, full_name, password_hash, role FROM users WHERE email = :email LIMIT 1');
-    $stmt->execute(['email' => trim($email)]);
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = :username LIMIT 1');
+    $stmt->execute(['username' => trim($username)]);
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
@@ -35,7 +35,7 @@ function login(string $email, string $password): bool
     }
 
     $_SESSION['user_id'] = (int) $user['id'];
-    $_SESSION['user_name'] = $user['full_name'];
+    $_SESSION['username'] = $user['username'];
     $_SESSION['role'] = $user['role'];
 
     return true;

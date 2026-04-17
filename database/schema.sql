@@ -4,7 +4,7 @@ USE smartrent_manager;
 CREATE TABLE users (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(120) NOT NULL,
-    email VARCHAR(160) NOT NULL UNIQUE,
+    username VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('finance_manager','admin') NOT NULL DEFAULT 'finance_manager',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -12,10 +12,10 @@ CREATE TABLE users (
 ) ENGINE=InnoDB;
 
 
-INSERT INTO users (full_name, email, password_hash, role)
+INSERT INTO users (full_name, username, password_hash, role)
 VALUES (
     'System Administrator',
-    'admin@smartrent.com',
+    'admin',
     '$2y$12$bXswBP5qfi2gqke/xtYjbuzZwN9yKBnhldSgcDG7XyEjaP/Gh/4ZG',
     'admin'
 )
