@@ -96,6 +96,7 @@ CREATE TABLE rent_schedule (
 CREATE TABLE payments (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     tenant_id BIGINT UNSIGNED NOT NULL,
+    monthly_rent DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'KSH',
     amount_paid DECIMAL(12,2) NOT NULL COMMENT 'KSH',
     payment_date DATE NOT NULL,
     month DATE NOT NULL,
