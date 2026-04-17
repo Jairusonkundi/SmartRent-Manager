@@ -8,10 +8,10 @@ require_once __DIR__ . '/../includes/functions.php';
 startSession();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL) ?: '';
+    $username = trim((string) ($_POST['username'] ?? ''));
     $password = $_POST['password'] ?? '';
 
-    if (login($email, $password)) {
+    if (login($username, $password)) {
         header('Location: /public/dashboard.php');
         exit;
     }
@@ -47,8 +47,8 @@ $flash = getFlash();
             <p class="login-subtitle">Sign in to continue to your manager workspace.</p>
             <?php if ($flash): ?><div class="alert error"><?= h($flash['message']) ?></div><?php endif; ?>
 
-            <label>Email
-                <input type="email" name="email" autocomplete="email" required>
+            <label>Username
+                <input type="text" name="username" placeholder="Enter your username" autocomplete="username" required>
             </label>
 
             <label>Password
