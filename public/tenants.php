@@ -13,12 +13,13 @@ $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 $page = max(1, (int) ($_GET['page'] ?? 1));
 $requestedLimit = (string) ($_GET['limit'] ?? '10');
-$limit = $requestedLimit === 'all' ? 9999 : (int) $requestedLimit;
-$allowedLimits = [5, 10, 15, 20, 9999];
-if (!in_array($limit, $allowedLimits, true)) {
+$isAllLimit = $requestedLimit === 'all';
+$limit = $isAllLimit ? 10 : (int) $requestedLimit;
+$allowedLimits = [5, 10, 15, 20];
+if (!$isAllLimit && !in_array($limit, $allowedLimits, true)) {
     $limit = 10;
 }
-$offset = ($page - 1) * $limit;
+$offset = $isAllLimit ? 0 : ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 $statusFilter = (string) ($_GET['status'] ?? 'all');
@@ -30,25 +31,25 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$whereClauses = ['1=1'];
 $params = [];
+$where = ['1=1'];
 
 if ($search !== '') {
-    $whereClauses[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
-    $params[':search'] = '%' . $search . '%';
+    $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
+    $params['search'] = '%' . $search . '%';
 }
 
 if ($propertyFilter !== 'all') {
-    $whereClauses[] = 'p.id = :property_id';
-    $params[':property_id'] = (int) $propertyFilter;
+    $where[] = 'p.id = :property_id';
+    $params['property_id'] = (int) $propertyFilter;
 }
 
 if ($statusFilter !== 'all') {
-    $whereClauses[] = 't.status = :status';
-    $params[':status'] = $statusFilter;
+    $where[] = 't.status = :status';
+    $params['status'] = $statusFilter;
 }
 
-$whereSql = implode(' AND ', $whereClauses);
+$whereSql = implode(' AND ', $where);
 
 $countSql = "SELECT COUNT(*)
     FROM tenants t
@@ -57,10 +58,7 @@ $countSql = "SELECT COUNT(*)
     LEFT JOIN properties p ON p.id = u.property_id
     WHERE {$whereSql}";
 $countStmt = $pdo->prepare($countSql);
-foreach ($params as $key => $value) {
-    $countStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
-}
-$countStmt->execute();
+$countStmt->execute($params);
 $totalRecords = (int) $countStmt->fetchColumn();
 
 $querySql = "SELECT t.id, t.name, t.phone, t.email, t.status, u.unit_number, p.name AS property_name
@@ -69,21 +67,27 @@ $querySql = "SELECT t.id, t.name, t.phone, t.email, t.status, u.unit_number, p.n
     LEFT JOIN units u ON u.id = l.unit_id
     LEFT JOIN properties p ON p.id = u.property_id
     WHERE {$whereSql}
-    ORDER BY t.name
-    LIMIT :limit OFFSET :offset";
+    ORDER BY t.name";
+
+if (!$isAllLimit) {
+    $querySql .= ' LIMIT :limit OFFSET :offset';
+}
+
 $stmt = $pdo->prepare($querySql);
 foreach ($params as $key => $value) {
-    $stmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
 }
-$stmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
-$stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
+if (!$isAllLimit) {
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+}
 $stmt->execute();
 $tenants = $stmt->fetchAll();
 
 $currentCount = count($tenants);
-
-$paginationHtml = renderPaginationLinks($totalRecords, $page, $limit, [
-    'limit' => $limit,
+$paginationLimit = $isAllLimit ? max(1, $totalRecords) : $limit;
+$paginationHtml = renderPaginationLinks($totalRecords, $page, $paginationLimit, [
+    'limit' => $isAllLimit ? 'all' : (string) $limit,
     'search' => $search,
     'property_id' => $propertyFilter,
     'status' => $statusFilter,
@@ -96,9 +100,10 @@ renderHeader('Tenants');
     <form method="get" class="control-bar">
         <label>Limit
             <select name="limit">
-                <?php foreach ([5, 10, 15, 20, 9999] as $limitOption): ?>
-                    <option value="<?= $limitOption ?>" <?= $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption === 9999 ? 'All' : $limitOption ?></option>
+                <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
+                    <option value="<?= $limitOption ?>" <?= !$isAllLimit && $limit === $limitOption ? 'selected' : '' ?>><?= $limitOption ?></option>
                 <?php endforeach; ?>
+                <option value="all" <?= $isAllLimit ? 'selected' : '' ?>>All</option>
             </select>
         </label>
         <label>Search
