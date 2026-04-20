@@ -13,26 +13,27 @@ $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tenantId = (int) ($_POST['tenant_id'] ?? 0);
+    $tenant_id = (int) ($_POST['tenant_id'] ?? 0);
     $amountRaw = $_POST['amount'] ?? $_POST['amount_paid'] ?? 0;
     $amount = (float) $amountRaw;
     $monthInput = trim((string) ($_POST['month'] ?? date('Y-m')));
     $paymentDateInput = trim((string) ($_POST['payment_date'] ?? date('Y-m-d')));
 
     $monthDate = DateTimeImmutable::createFromFormat('!Y-m', $monthInput);
-    $billingMonth = $monthDate ? $monthDate->format('Y-m') : '';
+    $billing_month = $monthDate ? $monthDate->format('Y-m') : '';
 
     $paymentDateObj = DateTimeImmutable::createFromFormat('!Y-m-d', $paymentDateInput);
-    $paymentDate = $paymentDateObj && $paymentDateObj->format('Y-m-d') === $paymentDateInput
+    $date = $paymentDateObj && $paymentDateObj->format('Y-m-d') === $paymentDateInput
         ? $paymentDateObj->format('Y-m-d')
         : '';
 
-    $userId = (int) ($_SESSION['user_id'] ?? 0);
+    $user_id = (int) ($_SESSION['user_id'] ?? 0);
 
-    if ($tenantId <= 0 || $amount <= 0 || $billingMonth === '' || $paymentDate === '' || $userId <= 0) {
+    if ($tenant_id <= 0 || $amount <= 0 || $billing_month === '' || $date === '' || $user_id <= 0) {
         setFlash('error', 'Please select tenant and provide a valid amount, billing month, and payment date.');
     } else {
-        (new PaymentService())->recordPayment($tenantId, $billingMonth, $amount, $paymentDate, $userId);
+        $paymentService = new PaymentService();
+        $paymentService->recordPayment($tenant_id, $billing_month, $amount, $date, $_SESSION['user_id']);
         setFlash('success', 'Payment of KSH ' . number_format($amount, 2) . ' recorded successfully!');
     }
 

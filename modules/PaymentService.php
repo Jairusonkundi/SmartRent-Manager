@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 
 final class PaymentService
 {
-    public function recordPayment(int $tenantId, string $billingMonth, float $amountPaid, string $paymentDate, ?int $userId): void
+    public function recordPayment(int $tenantId, string $billingMonth, float $amountPaid, string $paymentDate, ?int $userId): bool
     {
         $pdo = Database::connection();
         $monthStart = (new DateTimeImmutable($billingMonth . '-01'))->format('Y-m-d');
@@ -32,7 +32,7 @@ final class PaymentService
                 JOIN (
                     SELECT tenant_id, billing_month AS month, SUM(amount_paid) total_paid
                     FROM payments
-                    WHERE tenant_id = :tenant_id AND billing_month = :month
+                    WHERE tenant_id = ? AND billing_month = ?
                     GROUP BY tenant_id, billing_month
                 ) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
                 SET rs.status = CASE
@@ -40,13 +40,14 @@ final class PaymentService
                     WHEN p.total_paid > 0 THEN 'partial'
                     ELSE 'unpaid'
                 END
-                WHERE rs.tenant_id = :tenant_id AND rs.month = :month
+                WHERE rs.tenant_id = ? AND rs.month = ?
             ";
 
             $statusStmt = $pdo->prepare($statusSql);
-            $statusStmt->execute(['tenant_id' => $tenantId, 'month' => $monthStart]);
+            $statusStmt->execute([$tenantId, $billingMonth, $tenantId, $monthStart]);
 
             $pdo->commit();
+            return true;
         } catch (Throwable $e) {
             $pdo->rollBack();
             throw $e;
