@@ -45,17 +45,17 @@ $rentStatusExpr = "CASE
 
 if ($search !== '') {
     $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
-    $params['search'] = '%' . $search . '%';
+    $params[':search'] = '%' . $search . '%';
 }
 
 if ($propertyFilter !== 'all') {
     $where[] = 'pr.id = :property_id';
-    $params['property_id'] = (int) $propertyFilter;
+    $params[':property_id'] = (int) $propertyFilter;
 }
 
 if ($statusFilter !== 'all') {
     $having[] = "{$rentStatusExpr} = :status";
-    $params['status'] = $statusFilter;
+    $params[':status'] = $statusFilter;
 }
 
 $whereSql = implode(' AND ', $where);

@@ -36,17 +36,17 @@ $params = [];
 
 if ($search !== '') {
     $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
-    $params['search'] = '%' . $search . '%';
+    $params[':search'] = '%' . $search . '%';
 }
 
 if ($propertyFilter !== 'all') {
     $where[] = 'p.id = :property_id';
-    $params['property_id'] = (int) $propertyFilter;
+    $params[':property_id'] = (int) $propertyFilter;
 }
 
 if ($statusFilter !== 'all') {
     $where[] = 't.status = :status';
-    $params['status'] = $statusFilter;
+    $params[':status'] = $statusFilter;
 }
 
 $whereSql = implode(' AND ', $where);
