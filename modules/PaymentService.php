@@ -13,20 +13,18 @@ final class PaymentService
 
         $pdo->beginTransaction();
         try {
-            $sql = 'INSERT INTO payments (tenant_id, billing_month, amount_paid, payment_date, month, payment_status, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)';
-            $stmt = $pdo->prepare($sql);
-
             $day = (int) date('d', strtotime($paymentDate));
             $status = $day <= 10 ? 'On Time' : 'Late';
 
+            $sql = 'INSERT INTO payments (tenant_id, billing_month, amount_paid, payment_date, user_id, status) VALUES (?, ?, ?, ?, ?, ?)';
+            $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $tenantId,
                 $billingMonth,
                 $amountPaid,
                 $paymentDate,
-                $monthStart,
-                $status,
                 $userId,
+                $status,
             ]);
 
             $statusSql = "

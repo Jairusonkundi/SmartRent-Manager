@@ -118,6 +118,11 @@ CREATE TABLE payments (
 ALTER TABLE payments
     ADD COLUMN IF NOT EXISTS billing_month VARCHAR(7) AFTER tenant_id;
 
+ALTER TABLE payments
+    ADD COLUMN IF NOT EXISTS user_id BIGINT UNSIGNED NULL AFTER payment_date,
+    ADD COLUMN IF NOT EXISTS status ENUM('On Time','Late') NOT NULL DEFAULT 'On Time' AFTER user_id;
+
+
 CREATE TABLE expenses (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     property_id BIGINT UNSIGNED NOT NULL,
