@@ -14,15 +14,24 @@ $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tenantId = (int) ($_POST['tenant_id'] ?? 0);
-    $amount = (float) ($_POST['amount_paid'] ?? 0);
-    $month = (string) ($_POST['month'] ?? date('Y-m-01'));
-    $paymentDate = (string) ($_POST['payment_date'] ?? date('Y-m-d'));
+    $amountInput = trim((string) ($_POST['amount_paid'] ?? '0'));
+    $amount = is_numeric($amountInput) ? (float) $amountInput : 0.0;
+    $monthInput = trim((string) ($_POST['month'] ?? date('Y-m')));
+    $paymentDateInput = trim((string) ($_POST['payment_date'] ?? date('Y-m-d')));
 
-    if ($tenantId <= 0 || $amount <= 0) {
-        flash('error', 'Please select tenant and enter a valid amount.');
+    $monthDate = DateTimeImmutable::createFromFormat('!Y-m', $monthInput);
+    $billingMonth = $monthDate ? $monthDate->format('Y-m-d') : '';
+
+    $paymentDateObj = DateTimeImmutable::createFromFormat('!Y-m-d', $paymentDateInput);
+    $paymentDate = $paymentDateObj && $paymentDateObj->format('Y-m-d') === $paymentDateInput
+        ? $paymentDateObj->format('Y-m-d')
+        : '';
+
+    if ($tenantId <= 0 || $amount <= 0 || $billingMonth === '' || $paymentDate === '') {
+        setFlash('error', 'Please select tenant and provide a valid amount, billing month, and payment date.');
     } else {
-        (new PaymentService())->recordPayment($tenantId, $month, $amount, $paymentDate, (int) $_SESSION['user_id']);
-        flash('success', 'Payment recorded successfully.');
+        (new PaymentService())->recordPayment($tenantId, $billingMonth, $amount, $paymentDate, (int) $_SESSION['user_id']);
+        setFlash('success', 'Payment of KSH ' . number_format($amount, 2) . ' recorded successfully!');
     }
 
     header('Location: /public/payments.php');
@@ -85,7 +94,7 @@ $baseFrom = "
     JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
     JOIN units u ON u.id = l.unit_id
     JOIN properties pr ON pr.id = u.property_id
-    LEFT JOIN payments pm ON pm.tenant_id = rs.tenant_id AND pm.month = rs.month
+    LEFT JOIN payments pm ON pm.tenant_id = rs.tenant_id AND pm.billing_month = rs.month
     WHERE {$whereSql}
     GROUP BY rs.id, t.name, rs.month, rs.expected_rent, pr.name, u.unit_number
     HAVING {$havingSql}
