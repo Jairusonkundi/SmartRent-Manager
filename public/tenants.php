@@ -35,28 +35,27 @@ $where = ['1=1'];
 $params = [];
 
 if ($search !== '') {
-    $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
-    $params[':search'] = '%' . $search . '%';
+    $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
+    $searchParam = '%' . $search . '%';
+    array_push($params, $searchParam, $searchParam);
 }
 
 if ($propertyFilter !== 'all') {
-    $where[] = 'p.id = :property_id';
-    $params[':property_id'] = (int) $propertyFilter;
+    $where[] = 'p.id = ?';
+    array_push($params, (int) $propertyFilter);
 }
 
 if ($statusFilter !== 'all') {
-    $where[] = 't.status = :status';
-    $params[':status'] = $statusFilter;
+    $where[] = 't.status = ?';
+    array_push($params, $statusFilter);
 }
-
-$whereSql = implode(' AND ', $where);
 
 $countSql = "SELECT COUNT(*)
     FROM tenants t
     LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
     LEFT JOIN units u ON u.id = l.unit_id
     LEFT JOIN properties p ON p.id = u.property_id
-    WHERE {$whereSql}";
+    WHERE " . implode(' AND ', $where);
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
 $totalRecords = (int) $countStmt->fetchColumn();
@@ -66,7 +65,7 @@ $querySql = "SELECT t.id, t.name, t.phone, t.email, t.status, u.unit_number, p.n
     LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
     LEFT JOIN units u ON u.id = l.unit_id
     LEFT JOIN properties p ON p.id = u.property_id
-    WHERE {$whereSql}
+    WHERE " . implode(' AND ', $where) . "
     ORDER BY t.name";
 
 if (!$isAllLimit) {
