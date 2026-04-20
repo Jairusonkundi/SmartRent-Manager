@@ -9,11 +9,11 @@ final class PaymentService
     public function recordPayment(int $tenantId, string $billingMonth, float $amountPaid, string $paymentDate, ?int $userId): void
     {
         $pdo = Database::connection();
-        $monthStart = (new DateTimeImmutable($billingMonth))->modify('first day of this month')->format('Y-m-d');
+        $monthStart = (new DateTimeImmutable($billingMonth . '-01'))->format('Y-m-d');
 
         $pdo->beginTransaction();
         try {
-            $sql = 'INSERT INTO payments (tenant_id, billing_month, amount_paid, payment_date, user_id, status) VALUES (?, ?, ?, ?, ?, ?)';
+            $sql = 'INSERT INTO payments (tenant_id, billing_month, amount_paid, payment_date, month, payment_status, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)';
             $stmt = $pdo->prepare($sql);
 
             $day = (int) date('d', strtotime($paymentDate));
@@ -21,11 +21,12 @@ final class PaymentService
 
             $stmt->execute([
                 $tenantId,
-                $monthStart,
+                $billingMonth,
                 $amountPaid,
                 $paymentDate,
-                $userId,
+                $monthStart,
                 $status,
+                $userId,
             ]);
 
             $statusSql = "
