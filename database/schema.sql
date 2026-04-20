@@ -96,6 +96,7 @@ CREATE TABLE rent_schedule (
 CREATE TABLE payments (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     tenant_id BIGINT UNSIGNED NOT NULL,
+    billing_month VARCHAR(7) NOT NULL COMMENT 'YYYY-MM',
     monthly_rent DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'KSH',
     amount_paid DECIMAL(12,2) NOT NULL COMMENT 'KSH',
     payment_date DATE NOT NULL,
@@ -107,10 +108,15 @@ CREATE TABLE payments (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_payments_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
     CONSTRAINT fk_payments_user FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
+    KEY idx_payments_tenant_billing_month (tenant_id, billing_month),
     KEY idx_payments_tenant_month (tenant_id, month),
     KEY idx_payments_date (payment_date),
-    KEY idx_payments_month (month)
+    KEY idx_payments_month (month),
+    KEY idx_payments_billing_month (billing_month)
 ) ENGINE=InnoDB;
+
+ALTER TABLE payments
+    ADD COLUMN IF NOT EXISTS billing_month VARCHAR(7) AFTER tenant_id;
 
 CREATE TABLE expenses (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

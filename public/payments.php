@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $paymentDateInput = trim((string) ($_POST['payment_date'] ?? date('Y-m-d')));
 
     $monthDate = DateTimeImmutable::createFromFormat('!Y-m', $monthInput);
-    $billingMonth = $monthDate ? $monthDate->format('Y-m-d') : '';
+    $billingMonth = $monthDate ? $monthDate->format('Y-m') : '';
 
     $paymentDateObj = DateTimeImmutable::createFromFormat('!Y-m-d', $paymentDateInput);
     $paymentDate = $paymentDateObj && $paymentDateObj->format('Y-m-d') === $paymentDateInput
@@ -50,7 +50,7 @@ $offset = $isAllLimit ? 0 : ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 $statusFilter = (string) ($_GET['status'] ?? 'all');
-$allowedStatuses = ['Paid', 'Partial', 'Unpaid'];
+$allowedStatuses = ['On Time', 'Late'];
 
 if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true)) {
     $statusFilter = 'all';
@@ -61,13 +61,6 @@ $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetc
 
 $where = ['1=1'];
 $params = [];
-$having = ['1=1'];
-$sumPaidExpr = 'COALESCE(SUM(pm.amount_paid), 0)';
-$paymentStatusExpr = "CASE
-        WHEN {$sumPaidExpr} = 0 THEN 'Unpaid'
-        WHEN {$sumPaidExpr} < rs.expected_rent THEN 'Partial'
-        ELSE 'Paid'
-    END";
 
 if ($search !== '') {
     $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
@@ -81,41 +74,33 @@ if ($propertyFilter !== 'all') {
 }
 
 if ($statusFilter !== 'all') {
-    $having[] = "{$paymentStatusExpr} = ?";
+    $where[] = 'p.payment_status = ?';
     array_push($params, $statusFilter);
 }
 
 $whereSql = implode(' AND ', $where);
-$havingSql = implode(' AND ', $having);
-
 $baseFrom = "
-    FROM rent_schedule rs
-    JOIN tenants t ON t.id = rs.tenant_id
+    FROM payments p
+    JOIN tenants t ON p.tenant_id = t.id
     JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
     JOIN units u ON u.id = l.unit_id
     JOIN properties pr ON pr.id = u.property_id
-    LEFT JOIN payments pm ON pm.tenant_id = rs.tenant_id AND pm.billing_month = rs.month
     WHERE {$whereSql}
-    GROUP BY rs.id, t.name, rs.month, rs.expected_rent, pr.name, u.unit_number
-    HAVING {$havingSql}
 ";
 
-$countSql = "SELECT COUNT(*) FROM (SELECT rs.id {$baseFrom}) AS counted_rows";
+$countSql = "SELECT COUNT(*) {$baseFrom}";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
 $totalRecords = (int) $countStmt->fetchColumn();
 
 $paymentsSql = "SELECT
+        p.*,
         t.name,
-        rs.month,
-        rs.expected_rent,
-        {$sumPaidExpr} AS amount_paid,
-        MAX(pm.payment_date) AS payment_date,
         pr.name AS property_name,
         u.unit_number,
-        {$paymentStatusExpr} AS payment_status
+        p.payment_status AS payment_status
     {$baseFrom}
-    ORDER BY rs.month DESC, t.name ASC";
+    ORDER BY p.payment_date DESC";
 
 if (!$isAllLimit) {
     $paymentsSql .= ' LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
@@ -201,8 +186,8 @@ renderHeader('Payments');
                     <td><?= h($p['unit_number']) ?></td>
                     <td><?= formatKsh((float) $p['amount_paid']) ?></td>
                     <td><?= $p['payment_date'] ? h($p['payment_date']) : '-' ?></td>
-                    <td><?= date('M Y', strtotime($p['month'])) ?></td>
-                    <td><span class="badge <?= strtolower($p['payment_status']) === 'paid' ? 'paid' : (strtolower($p['payment_status']) === 'partial' ? 'partial' : 'unpaid') ?>"><?= h($p['payment_status']) ?></span></td>
+                    <td><?= date('M Y', strtotime($p['billing_month'] . '-01')) ?></td>
+                    <td><span class="badge <?= strtolower($p['payment_status']) === 'on time' ? 'paid' : 'partial' ?>"><?= h($p['payment_status']) ?></span></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
