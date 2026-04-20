@@ -14,8 +14,8 @@ $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tenantId = (int) ($_POST['tenant_id'] ?? 0);
-    $amountInput = trim((string) ($_POST['amount_paid'] ?? '0'));
-    $amount = is_numeric($amountInput) ? (float) $amountInput : 0.0;
+    $amountRaw = $_POST['amount'] ?? $_POST['amount_paid'] ?? 0;
+    $amount = (float) $amountRaw;
     $monthInput = trim((string) ($_POST['month'] ?? date('Y-m')));
     $paymentDateInput = trim((string) ($_POST['payment_date'] ?? date('Y-m-d')));
 
@@ -27,10 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ? $paymentDateObj->format('Y-m-d')
         : '';
 
-    if ($tenantId <= 0 || $amount <= 0 || $billingMonth === '' || $paymentDate === '') {
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    if ($tenantId <= 0 || $amount <= 0 || $billingMonth === '' || $paymentDate === '' || $userId <= 0) {
         setFlash('error', 'Please select tenant and provide a valid amount, billing month, and payment date.');
     } else {
-        (new PaymentService())->recordPayment($tenantId, $billingMonth, $amount, $paymentDate, (int) $_SESSION['user_id']);
+        (new PaymentService())->recordPayment($tenantId, $billingMonth, $amount, $paymentDate, $userId);
         setFlash('success', 'Payment of KSH ' . number_format($amount, 2) . ' recorded successfully!');
     }
 
@@ -74,7 +76,7 @@ if ($propertyFilter !== 'all') {
 }
 
 if ($statusFilter !== 'all') {
-    $where[] = 'p.payment_status = ?';
+    $where[] = 'p.status = ?';
     array_push($params, $statusFilter);
 }
 
@@ -98,7 +100,7 @@ $paymentsSql = "SELECT
         t.name,
         pr.name AS property_name,
         u.unit_number,
-        p.payment_status AS payment_status
+        p.status AS payment_status
     {$baseFrom}
     ORDER BY p.payment_date DESC";
 
