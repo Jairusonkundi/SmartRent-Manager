@@ -61,18 +61,19 @@ $paymentStatusExpr = "CASE
     END";
 
 if ($search !== '') {
-    $where[] = '(t.name LIKE :search OR u.unit_number LIKE :search)';
-    $params[':search'] = '%' . $search . '%';
+    $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
+    $searchParam = '%' . $search . '%';
+    array_push($params, $searchParam, $searchParam);
 }
 
 if ($propertyFilter !== 'all') {
-    $where[] = 'pr.id = :property_id';
-    $params[':property_id'] = (int) $propertyFilter;
+    $where[] = 'pr.id = ?';
+    array_push($params, (int) $propertyFilter);
 }
 
 if ($statusFilter !== 'all') {
-    $having[] = "{$paymentStatusExpr} = :status";
-    $params[':status'] = $statusFilter;
+    $having[] = "{$paymentStatusExpr} = ?";
+    array_push($params, $statusFilter);
 }
 
 $whereSql = implode(' AND ', $where);
