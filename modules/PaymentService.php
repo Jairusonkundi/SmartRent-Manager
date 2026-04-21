@@ -86,4 +86,56 @@ final class PaymentService
             throw $e;
         }
     }
+
+    /**
+     * Arrears are only valid for current/past months where collected cash is below expected rent.
+     */
+    public function arrearsSummaryByTenant(string $search = '', ?int $propertyId = null): array
+    {
+        $pdo = Database::connection();
+
+        $where = [
+            "p.billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')",
+            'p.amount_paid < p.amount_expected',
+        ];
+        $params = [];
+
+        if ($search !== '') {
+            $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
+            $searchParam = '%' . $search . '%';
+            $params[] = $searchParam;
+            $params[] = $searchParam;
+        }
+
+        if ($propertyId !== null) {
+            $where[] = 'pr.id = ?';
+            $params[] = $propertyId;
+        }
+
+        $whereSql = implode(' AND ', $where);
+
+        $stmt = $pdo->prepare(
+            "SELECT
+                p.tenant_id,
+                t.name,
+                COALESCE(pr.name, 'Unassigned Property') AS property_name,
+                COALESCE(u.unit_number, '-') AS unit_number,
+                MAX(p.amount_expected) AS monthly_rent,
+                SUM(p.amount_paid) AS amount_paid,
+                (MAX(p.amount_expected) - SUM(p.amount_paid)) AS balance
+            FROM payments p
+            JOIN tenants t ON t.id = p.tenant_id
+            LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
+            LEFT JOIN units u ON u.id = l.unit_id
+            LEFT JOIN properties pr ON pr.id = u.property_id
+            WHERE {$whereSql}
+            GROUP BY p.tenant_id, t.name, pr.name, u.unit_number
+            HAVING (COALESCE(MAX(p.amount_expected), 0) - COALESCE(SUM(p.amount_paid), 0)) > 0
+            ORDER BY balance DESC, t.name ASC"
+        );
+
+        $stmt->execute($params);
+
+        return $stmt->fetchAll() ?: [];
+    }
 }

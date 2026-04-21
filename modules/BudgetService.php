@@ -22,7 +22,7 @@ final class BudgetService
         );
         $stmt->execute([(string) $year]);
 
-        return $stmt->fetchAll();
+        return $stmt->fetchAll() ?: [];
     }
 
     public function quarterlyComparison(int $year): array
@@ -41,6 +41,26 @@ final class BudgetService
         );
         $stmt->execute([(string) $year]);
 
-        return $stmt->fetchAll();
+        return $stmt->fetchAll() ?: [];
+    }
+
+    public function periodTotals(string $periodStartMonth, string $periodEndMonth): array
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'SELECT
+                COALESCE(SUM(amount_expected), 0) AS expected,
+                COALESCE(SUM(amount_paid), 0) AS paid
+             FROM payments
+             WHERE billing_month >= ? AND billing_month <= ?'
+        );
+        $stmt->execute([$periodStartMonth, $periodEndMonth]);
+
+        $row = $stmt->fetch() ?: ['expected' => 0, 'paid' => 0];
+
+        return [
+            'expected' => (float) ($row['expected'] ?? 0),
+            'paid' => (float) ($row['paid'] ?? 0),
+        ];
     }
 }
