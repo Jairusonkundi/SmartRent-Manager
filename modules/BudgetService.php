@@ -11,21 +11,16 @@ final class BudgetService
         $pdo = Database::connection();
         $stmt = $pdo->prepare(
             "SELECT
-                DATE_FORMAT(rs.month, '%Y-%m') AS month_key,
-                SUM(rs.expected_rent) AS expected,
-                COALESCE(SUM(p.total_paid),0) AS paid,
-                SUM(rs.expected_rent) - COALESCE(SUM(p.total_paid),0) AS outstanding
-             FROM rent_schedule rs
-             LEFT JOIN (
-                SELECT tenant_id, month, SUM(amount_paid) AS total_paid
-                FROM payments
-                GROUP BY tenant_id, month
-             ) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
-             WHERE YEAR(rs.month) = :year
-             GROUP BY rs.month
-             ORDER BY rs.month"
+                billing_month AS month_key,
+                SUM(amount_expected) AS expected,
+                SUM(amount_paid) AS paid,
+                SUM(amount_expected) - SUM(amount_paid) AS outstanding
+             FROM payments
+             WHERE LEFT(billing_month, 4) = ?
+             GROUP BY billing_month
+             ORDER BY billing_month"
         );
-        $stmt->execute(['year' => $year]);
+        $stmt->execute([(string) $year]);
 
         return $stmt->fetchAll();
     }
@@ -35,21 +30,16 @@ final class BudgetService
         $pdo = Database::connection();
         $stmt = $pdo->prepare(
             "SELECT
-                CONCAT('Q', QUARTER(rs.month)) AS quarter_label,
-                SUM(rs.expected_rent) AS expected,
-                COALESCE(SUM(p.total_paid),0) AS paid,
-                SUM(rs.expected_rent) - COALESCE(SUM(p.total_paid),0) AS outstanding
-            FROM rent_schedule rs
-            LEFT JOIN (
-                SELECT tenant_id, month, SUM(amount_paid) AS total_paid
-                FROM payments
-                GROUP BY tenant_id, month
-            ) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
-            WHERE YEAR(rs.month) = :year
-            GROUP BY QUARTER(rs.month)
-            ORDER BY QUARTER(rs.month)"
+                CONCAT('Q', QUARTER(CONCAT(billing_month, '-01'))) AS quarter_label,
+                SUM(amount_expected) AS expected,
+                SUM(amount_paid) AS paid,
+                SUM(amount_expected) - SUM(amount_paid) AS outstanding
+            FROM payments
+            WHERE LEFT(billing_month, 4) = ?
+            GROUP BY QUARTER(CONCAT(billing_month, '-01'))
+            ORDER BY QUARTER(CONCAT(billing_month, '-01'))"
         );
-        $stmt->execute(['year' => $year]);
+        $stmt->execute([(string) $year]);
 
         return $stmt->fetchAll();
     }

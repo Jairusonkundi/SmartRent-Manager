@@ -102,12 +102,21 @@ $insertLease = $pdo->prepare(
      ON DUPLICATE KEY UPDATE rent_amount = VALUES(rent_amount), status = VALUES(status)'
 );
 $insertPayment = $pdo->prepare(
-    'INSERT INTO payments (tenant_id, billing_month, monthly_rent, amount_paid, payment_date, month, payment_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO payments (tenant_id, billing_month, amount_expected, monthly_rent, amount_paid, payment_date, month, collection_status, payment_status, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
 
 try {
     $pdo->beginTransaction();
+
+    $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+    $pdo->exec('TRUNCATE TABLE payments');
+    $pdo->exec('TRUNCATE TABLE rent_schedule');
+    $pdo->exec('TRUNCATE TABLE leases');
+    $pdo->exec('TRUNCATE TABLE tenants');
+    $pdo->exec('TRUNCATE TABLE units');
+    $pdo->exec('TRUNCATE TABLE properties');
+    $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
 
     while (($row = fgetcsv($handle)) !== false) {
         if (count(array_filter($row, static fn ($value): bool => trim((string) $value) !== '')) === 0) {
@@ -147,7 +156,10 @@ try {
 
             $month = $billingMonth . '-01';
             $paymentDate = $month . '-10';
-            $paymentStatus = ((float) $amountPaidDecimal >= (float) $monthlyRentDecimal) ? 'On Time' : (((float) $amountPaidDecimal > 0) ? 'Partial' : 'Unpaid');
+            $collectionStatus = ((float) $amountPaidDecimal >= (float) $monthlyRentDecimal)
+                ? 'Paid'
+                : (((float) $amountPaidDecimal > 0) ? 'Partial' : 'Unpaid');
+            $paymentTimingStatus = 'On Time';
 
             $tenantService->ensureCurrentMonthBilling($tenantId, (float) $monthlyRentDecimal, $paymentDate);
 
@@ -155,10 +167,13 @@ try {
                 $tenantId,
                 $billingMonth,
                 $monthlyRentDecimal,
+                $monthlyRentDecimal,
                 $amountPaidDecimal,
                 $paymentDate,
                 $month,
-                $paymentStatus,
+                $collectionStatus,
+                $paymentTimingStatus,
+                $paymentTimingStatus,
             ]);
         }
 

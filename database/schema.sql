@@ -97,10 +97,12 @@ CREATE TABLE payments (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     tenant_id BIGINT UNSIGNED NOT NULL,
     billing_month VARCHAR(7) NOT NULL COMMENT 'YYYY-MM',
+    amount_expected DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'KSH expected rent for the billing month',
     monthly_rent DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'KSH',
     amount_paid DECIMAL(12,2) NOT NULL COMMENT 'KSH',
     payment_date DATE NOT NULL,
     month DATE NOT NULL,
+    collection_status ENUM('Paid','Partial','Unpaid') NOT NULL DEFAULT 'Unpaid',
     payment_status ENUM('On Time','Late') NOT NULL DEFAULT 'On Time',
     payment_channel ENUM('bank_transfer','cash','cheque') NOT NULL DEFAULT 'bank_transfer',
     reference_no VARCHAR(80) DEFAULT NULL,
@@ -117,6 +119,10 @@ CREATE TABLE payments (
 
 ALTER TABLE payments
     ADD COLUMN IF NOT EXISTS billing_month VARCHAR(7) AFTER tenant_id;
+
+ALTER TABLE payments
+    ADD COLUMN IF NOT EXISTS amount_expected DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER billing_month,
+    ADD COLUMN IF NOT EXISTS collection_status ENUM('Paid','Partial','Unpaid') NOT NULL DEFAULT 'Unpaid' AFTER month;
 
 ALTER TABLE payments
     ADD COLUMN IF NOT EXISTS user_id BIGINT UNSIGNED NULL AFTER payment_date,

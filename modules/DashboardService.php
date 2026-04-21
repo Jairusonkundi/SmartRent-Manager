@@ -9,21 +9,16 @@ final class DashboardService
     public function summary(string $month): array
     {
         $pdo = Database::connection();
-        $monthStart = (new DateTimeImmutable($month))->modify('first day of this month')->format('Y-m-d');
+        $billingMonth = (new DateTimeImmutable($month))->format('Y-m');
 
         $stmt = $pdo->prepare(
-            "SELECT
-                COALESCE(SUM(rs.expected_rent),0) AS total_expected,
-                COALESCE(SUM(p.total_paid),0) AS total_paid
-            FROM rent_schedule rs
-            LEFT JOIN (
-                SELECT tenant_id, month, SUM(amount_paid) AS total_paid
-                FROM payments
-                GROUP BY tenant_id, month
-            ) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
-            WHERE rs.month = ?"
+            'SELECT
+                COALESCE(SUM(amount_expected), 0) AS total_expected,
+                COALESCE(SUM(amount_paid), 0) AS total_paid
+             FROM payments
+             WHERE billing_month = ?'
         );
-        $stmt->execute([$monthStart]);
+        $stmt->execute([$billingMonth]);
         $row = $stmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0];
 
         $expected = (float) $row['total_expected'];
@@ -43,36 +38,28 @@ final class DashboardService
         $pdo = Database::connection();
         $monthStart = (new DateTimeImmutable($month))->modify('first day of this month')->format('Y-m-d');
         $monthEnd = (new DateTimeImmutable($monthStart))->modify('last day of this month')->format('Y-m-d');
+        $billingMonth = (new DateTimeImmutable($month))->format('Y-m');
 
         $expectedStmt = $pdo->prepare(
-            "SELECT COALESCE(SUM(CAST(l.rent_amount AS DECIMAL(12,2))), 0) AS total_expected
-             FROM leases l
-             JOIN units u ON u.id = l.unit_id
-             WHERE l.status = ?
-               AND u.status = ?
-               AND l.start_date <= ?
-               AND (l.end_date IS NULL OR l.end_date >= ?)"
+            'SELECT COALESCE(SUM(amount_expected), 0) AS total_expected
+             FROM payments
+             WHERE billing_month = ?'
         );
-        $expectedStmt->execute(['active', 'occupied', $monthEnd, $monthStart]);
+        $expectedStmt->execute([$billingMonth]);
         $totalExpected = (float) ($expectedStmt->fetchColumn() ?: 0);
 
         $paidStmt = $pdo->prepare(
             'SELECT COALESCE(SUM(amount_paid), 0)
              FROM payments
-             WHERE month = ?'
+             WHERE billing_month = ?'
         );
-        $paidStmt->execute([$monthStart]);
+        $paidStmt->execute([$billingMonth]);
         $totalPaid = (float) ($paidStmt->fetchColumn() ?: 0);
 
         $arrearsStmt = $pdo->prepare(
-            'SELECT
-                COALESCE(SUM(expected_rent), 0) - COALESCE(SUM(total_paid), 0)
-             FROM (
-                SELECT rs.tenant_id, rs.month, rs.expected_rent, COALESCE(SUM(p.amount_paid), 0) AS total_paid
-                FROM rent_schedule rs
-                LEFT JOIN payments p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
-                GROUP BY rs.tenant_id, rs.month, rs.expected_rent
-             ) debt_rollup'
+            'SELECT COALESCE(SUM(amount_expected - amount_paid), 0)
+             FROM payments
+             WHERE amount_paid < amount_expected'
         );
         $arrearsStmt->execute();
 
@@ -111,17 +98,12 @@ final class DashboardService
     {
         $pdo = Database::connection();
         $sql = "
-            SELECT DATE_FORMAT(rs.month, '%Y-%m') AS month_key,
-                   SUM(rs.expected_rent) AS expected,
-                   COALESCE(SUM(p.total_paid), 0) AS paid
-            FROM rent_schedule rs
-            LEFT JOIN (
-                SELECT tenant_id, month, SUM(amount_paid) AS total_paid
-                FROM payments
-                GROUP BY tenant_id, month
-            ) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
-            GROUP BY rs.month
-            ORDER BY rs.month DESC
+            SELECT billing_month AS month_key,
+                   SUM(amount_expected) AS expected,
+                   SUM(amount_paid) AS paid
+            FROM payments
+            GROUP BY billing_month
+            ORDER BY billing_month DESC
             LIMIT ?
         ";
         $stmt = $pdo->prepare($sql);
@@ -134,9 +116,9 @@ final class DashboardService
     public function paymentStatusDistribution(string $month): array
     {
         $pdo = Database::connection();
-        $monthStart = (new DateTimeImmutable($month))->modify('first day of this month')->format('Y-m-d');
-        $stmt = $pdo->prepare('SELECT status, COUNT(*) total FROM rent_schedule WHERE month = ? GROUP BY status');
-        $stmt->execute([$monthStart]);
+        $billingMonth = (new DateTimeImmutable($month))->format('Y-m');
+        $stmt = $pdo->prepare('SELECT collection_status AS status, COUNT(*) total FROM payments WHERE billing_month = ? GROUP BY collection_status');
+        $stmt->execute([$billingMonth]);
 
         return $stmt->fetchAll();
     }

@@ -39,15 +39,22 @@ final class PaymentService
                 'unpaid',
             ]);
 
-            $sql = 'INSERT INTO payments (tenant_id, billing_month, monthly_rent, amount_paid, payment_date, user_id, status, month) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+            $sql = 'INSERT INTO payments (tenant_id, billing_month, amount_expected, monthly_rent, amount_paid, payment_date, user_id, collection_status, payment_status, status, month) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
             $stmt = $pdo->prepare($sql);
+            $collectionStatus = $amountPaid >= $expectedRent
+                ? 'Paid'
+                : ($amountPaid > 0 ? 'Partial' : 'Unpaid');
+            $paymentStatus = $status;
             $stmt->execute([
                 $tenantId,
                 $billingMonth,
                 $expectedRent,
+                $expectedRent,
                 $amountPaid,
                 $paymentDate,
                 $userId,
+                $collectionStatus,
+                $paymentStatus,
                 $status,
                 $monthStart,
             ]);
