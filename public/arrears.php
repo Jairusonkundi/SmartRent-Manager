@@ -36,7 +36,7 @@ $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetc
 $where = ['1=1'];
 $params = [];
 $totalExpectedExpr = 'COALESCE(SUM(rs.expected_rent), 0)';
-$totalPaidExpr = 'COALESCE(SUM(p.amount_paid), 0)';
+$totalPaidExpr = 'COALESCE(SUM(p.total_paid), 0)';
 $totalDebtExpr = "({$totalExpectedExpr} - {$totalPaidExpr})";
 $statusExpr = "CASE
         WHEN {$totalDebtExpr} <= 0 THEN 'Paid'
@@ -80,7 +80,11 @@ JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
 JOIN units u ON u.id = l.unit_id
 JOIN properties pr ON pr.id = u.property_id
 LEFT JOIN rent_schedule rs ON rs.tenant_id = t.id
-LEFT JOIN payments p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
+LEFT JOIN (
+    SELECT tenant_id, month, SUM(amount_paid) AS total_paid
+    FROM payments
+    GROUP BY tenant_id, month
+) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
 WHERE {$whereSql}
 GROUP BY t.id, t.name, u.unit_number, pr.name
 HAVING {$havingSql}
@@ -112,6 +116,11 @@ if (!$isAllLimit) {
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $arrears = $stmt->fetchAll();
+$portfolioArrears = array_reduce(
+    $arrears,
+    static fn (float $carry, array $row): float => $carry + (float) $row['total_debt'],
+    0.0
+);
 
 $currentCount = count($arrears);
 $paginationLimit = $isAllLimit ? max(1, $totalRecords) : $limit;
@@ -167,7 +176,7 @@ renderHeader('Arrears');
         <button type="submit">Apply</button>
         <a class="button" href="/public/arrears.php">Clear Filters</a>
     </form>
-    <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
+    <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?> | Total Arrears: <?= formatKsh($portfolioArrears) ?></p>
     <table class="sortable">
         <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Debt Window</th><th>Total Expected</th><th>Total Paid</th><th>Total Debt</th><th>Status</th></tr></thead>
         <tbody>

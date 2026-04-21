@@ -43,38 +43,46 @@ final class DashboardService
         $pdo = Database::connection();
         $monthStart = (new DateTimeImmutable($month))->modify('first day of this month')->format('Y-m-d');
         $monthEnd = (new DateTimeImmutable($monthStart))->modify('last day of this month')->format('Y-m-d');
+        $billingMonth = (new DateTimeImmutable($monthStart))->format('Y-m');
 
         $expectedStmt = $pdo->prepare(
             "SELECT COALESCE(SUM(CAST(l.rent_amount AS DECIMAL(12,2))), 0) AS total_expected
              FROM leases l
+             JOIN tenants t ON t.id = l.tenant_id
              JOIN units u ON u.id = l.unit_id
              WHERE l.status = ?
+               AND t.status = ?
                AND u.status = ?
                AND l.start_date <= ?
                AND (l.end_date IS NULL OR l.end_date >= ?)"
         );
-        $expectedStmt->execute(['active', 'occupied', $monthEnd, $monthStart]);
+        $expectedStmt->execute(['active', 'active', 'occupied', $monthEnd, $monthStart]);
         $totalExpected = (float) ($expectedStmt->fetchColumn() ?: 0);
 
         $paidStmt = $pdo->prepare(
             'SELECT COALESCE(SUM(amount_paid), 0)
              FROM payments
-             WHERE month = ?'
+             WHERE billing_month = ?'
         );
-        $paidStmt->execute([$monthStart]);
+        $paidStmt->execute([$billingMonth]);
         $totalPaid = (float) ($paidStmt->fetchColumn() ?: 0);
 
         $arrearsStmt = $pdo->prepare(
-            'SELECT
-                COALESCE(SUM(expected_rent), 0) - COALESCE(SUM(total_paid), 0)
-             FROM (
-                SELECT rs.tenant_id, rs.month, rs.expected_rent, COALESCE(SUM(p.amount_paid), 0) AS total_paid
-                FROM rent_schedule rs
-                LEFT JOIN payments p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
-                GROUP BY rs.tenant_id, rs.month, rs.expected_rent
-             ) debt_rollup'
+            'SELECT COALESCE(SUM(GREATEST(rs.expected_rent - COALESCE(p.total_paid, 0), 0)), 0)
+             FROM rent_schedule rs
+             JOIN tenants t ON t.id = rs.tenant_id
+             JOIN leases l ON l.tenant_id = t.id
+               AND l.status = ?
+               AND l.start_date <= ?
+               AND (l.end_date IS NULL OR l.end_date >= ?)
+             JOIN units u ON u.id = l.unit_id AND u.status = ?
+             LEFT JOIN (
+                SELECT tenant_id, month, SUM(amount_paid) AS total_paid
+                FROM payments
+                GROUP BY tenant_id, month
+             ) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month'
         );
-        $arrearsStmt->execute();
+        $arrearsStmt->execute(['active', $monthEnd, $monthStart, 'occupied']);
 
         $occupancyStmt = $pdo->prepare(
             "SELECT
