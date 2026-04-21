@@ -13,10 +13,12 @@ function renderHeader(string $title): void
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'">
     <title><?= h($title) ?> | SmartRent Manager</title>
     <link rel="stylesheet" href="/public/assets/css/styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script defer src="/public/assets/js/app.js"></script>
+    <script defer src="/public/assets/js/upload.js"></script>
 </head>
 <body>
 <div class="app-shell">
