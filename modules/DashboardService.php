@@ -45,13 +45,16 @@ final class DashboardService
         $monthEnd = (new DateTimeImmutable($monthStart))->modify('last day of this month')->format('Y-m-d');
 
         $expectedStmt = $pdo->prepare(
-            "SELECT COALESCE(SUM(l.rent_amount), 0)
+            "SELECT COALESCE(SUM(CAST(l.rent_amount AS DECIMAL(12,2))), 0) AS total_expected
              FROM leases l
              JOIN units u ON u.id = l.unit_id
-             WHERE l.status = ? AND u.status = ?"
+             WHERE l.status = ?
+               AND u.status = ?
+               AND l.start_date <= ?
+               AND (l.end_date IS NULL OR l.end_date >= ?)"
         );
-        $expectedStmt->execute(['active', 'occupied']);
-        $potentialRevenue = (float) ($expectedStmt->fetchColumn() ?: 0);
+        $expectedStmt->execute(['active', 'occupied', $monthEnd, $monthStart]);
+        $totalExpected = (float) ($expectedStmt->fetchColumn() ?: 0);
 
         $paidStmt = $pdo->prepare(
             'SELECT COALESCE(SUM(amount_paid), 0)
@@ -59,7 +62,7 @@ final class DashboardService
              WHERE month = ?'
         );
         $paidStmt->execute([$monthStart]);
-        $actualRevenue = (float) ($paidStmt->fetchColumn() ?: 0);
+        $totalPaid = (float) ($paidStmt->fetchColumn() ?: 0);
 
         $arrearsStmt = $pdo->prepare(
             'SELECT
@@ -93,9 +96,9 @@ final class DashboardService
         $totalUnits = (int) ($occupancy['total_units'] ?? 0);
 
         return [
-            'total_expected' => $potentialRevenue,
-            'total_paid' => $actualRevenue,
-            'collection_efficiency' => $potentialRevenue > 0 ? round(($actualRevenue / $potentialRevenue) * 100, 2) : 0.0,
+            'total_expected' => $totalExpected,
+            'total_paid' => $totalPaid,
+            'collection_efficiency' => $totalExpected > 0 ? round(($totalPaid / $totalExpected) * 100, 2) : 0.0,
             'arrears_trend' => max((float) $arrearsStmt->fetchColumn(), 0),
             'occupied_units' => $occupiedUnits,
             'total_units' => $totalUnits,
