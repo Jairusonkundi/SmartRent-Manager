@@ -71,8 +71,8 @@ CREATE TABLE leases (
     status ENUM('active','terminated') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_leases_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-    CONSTRAINT fk_leases_unit FOREIGN KEY (unit_id) REFERENCES units(id),
+    CONSTRAINT fk_leases_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    CONSTRAINT fk_leases_unit FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
     UNIQUE KEY uq_leases_tenant_unit_start (tenant_id, unit_id, start_date),
     KEY idx_leases_unit_status (unit_id, status),
     KEY idx_leases_dates (start_date, end_date)
@@ -87,7 +87,7 @@ CREATE TABLE rent_schedule (
     status ENUM('paid','partial','unpaid') NOT NULL DEFAULT 'unpaid',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_rent_schedule_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+    CONSTRAINT fk_rent_schedule_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE KEY uq_rent_schedule_tenant_month (tenant_id, month),
     KEY idx_rent_schedule_due_status (due_date, status),
     KEY idx_rent_schedule_month (month)
@@ -106,7 +106,7 @@ CREATE TABLE payments (
     reference_no VARCHAR(80) DEFAULT NULL,
     recorded_by BIGINT UNSIGNED DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_payments_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+    CONSTRAINT fk_payments_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     CONSTRAINT fk_payments_user FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
     KEY idx_payments_tenant_billing_month (tenant_id, billing_month),
     KEY idx_payments_tenant_month (tenant_id, month),
@@ -131,7 +131,7 @@ CREATE TABLE expenses (
     date DATE NOT NULL,
     note VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_expenses_property FOREIGN KEY (property_id) REFERENCES properties(id),
+    CONSTRAINT fk_expenses_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
     KEY idx_expenses_property_date (property_id, date),
     KEY idx_expenses_category (category)
 ) ENGINE=InnoDB;

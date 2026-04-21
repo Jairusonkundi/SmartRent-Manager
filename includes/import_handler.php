@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../modules/TenantService.php';
+require_once __DIR__ . '/../modules/PropertyService.php';
 
 requireAuth();
 
@@ -68,43 +70,18 @@ foreach ($requiredHeaders as $requiredHeader) {
 }
 
 $pdo = Database::connection();
+$tenantService = new TenantService();
+$propertyService = new PropertyService();
 $processed = 0;
 
-$insertProperty = $pdo->prepare(
-    'INSERT INTO properties (name, location) VALUES (:name, :location)
-     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name)'
-);
-$insertUnit = $pdo->prepare(
-    'INSERT INTO units (property_id, unit_number, status) VALUES (:property_id, :unit_number, :status)
-     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), status = VALUES(status)'
-);
-$findTenant = $pdo->prepare('SELECT id FROM tenants WHERE name = :name LIMIT 1');
-$insertTenant = $pdo->prepare(
-    'INSERT INTO tenants (name, phone, email, tenant_phone, tenant_email, status)
-     VALUES (:name, :phone, :email, :tenant_phone, :tenant_email, :status)'
-);
-$updateTenant = $pdo->prepare(
-    'UPDATE tenants
-        SET phone = :phone,
-            email = :email,
-            tenant_phone = :tenant_phone,
-            tenant_email = :tenant_email,
-            status = :status
-      WHERE id = :id'
-);
 $insertLease = $pdo->prepare(
     'INSERT INTO leases (tenant_id, unit_id, rent_amount, start_date, status)
-     VALUES (:tenant_id, :unit_id, :rent_amount, :start_date, :status)
+     VALUES (?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE rent_amount = VALUES(rent_amount), status = VALUES(status)'
 );
-$insertRentSchedule = $pdo->prepare(
-    'INSERT INTO rent_schedule (tenant_id, month, expected_rent, due_date, status)
-     VALUES (:tenant_id, :month, :expected_rent, :due_date, :status)
-     ON DUPLICATE KEY UPDATE expected_rent = VALUES(expected_rent), status = VALUES(status)'
-);
 $insertPayment = $pdo->prepare(
-    'INSERT INTO payments (tenant_id, monthly_rent, amount_paid, payment_date, month, payment_status)
-     VALUES (:tenant_id, :monthly_rent, :amount_paid, :payment_date, :month, :payment_status)'
+    'INSERT INTO payments (tenant_id, billing_month, monthly_rent, amount_paid, payment_date, month, payment_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)'
 );
 
 try {
@@ -141,80 +118,28 @@ try {
         $paymentDate = $paymentTimestamp !== false ? date('Y-m-d', $paymentTimestamp) : $leaseStart;
 
         $month = date('Y-m-01', strtotime($paymentDate));
-        $dueDate = date('Y-m-10', strtotime($paymentDate));
+        $billingMonth = date('Y-m', strtotime($paymentDate));
         $paymentStatus = ((int) date('d', strtotime($paymentDate)) > 10) ? 'Late' : 'On Time';
 
-        // Normalize imported values to decimal strings so DB DECIMAL math remains reliable.
         $monthlyRentDecimal = number_format($monthlyRent, 2, '.', '');
         $amountPaidDecimal = number_format($amountPaid, 2, '.', '');
-        $balance = (float) $monthlyRentDecimal - (float) $amountPaidDecimal;
-        $scheduleStatus = 'unpaid';
-        if ($balance <= 0) {
-            $scheduleStatus = 'paid';
-        } elseif ($amountPaid > 0) {
-            $scheduleStatus = 'partial';
-        }
 
-        $insertProperty->execute([
-            'name' => $propertyName,
-            'location' => 'Unspecified',
-        ]);
-        $propertyId = (int) $pdo->lastInsertId();
+        $propertyId = $propertyService->upsertProperty($propertyName, 'Unspecified');
+        $unitId = $propertyService->upsertUnit($propertyId, $unitNumber, 'occupied');
+        $tenantId = $tenantService->upsertTenant($tenantName, $tenantPhone, $tenantEmail);
 
-        $insertUnit->execute([
-            'property_id' => $propertyId,
-            'unit_number' => $unitNumber,
-            'status' => 'occupied',
-        ]);
-        $unitId = (int) $pdo->lastInsertId();
+        $insertLease->execute([$tenantId, $unitId, $monthlyRentDecimal, $leaseStart, 'active']);
 
-        $findTenant->execute(['name' => $tenantName]);
-        $tenantId = (int) ($findTenant->fetchColumn() ?: 0);
-
-        if ($tenantId > 0) {
-            $updateTenant->execute([
-                'id' => $tenantId,
-                'phone' => $tenantPhone,
-                'email' => $tenantEmail,
-                'tenant_phone' => $tenantPhone,
-                'tenant_email' => $tenantEmail,
-                'status' => 'active',
-            ]);
-        } else {
-            $insertTenant->execute([
-                'name' => $tenantName,
-                'phone' => $tenantPhone,
-                'email' => $tenantEmail,
-                'tenant_phone' => $tenantPhone,
-                'tenant_email' => $tenantEmail,
-                'status' => 'active',
-            ]);
-            $tenantId = (int) $pdo->lastInsertId();
-        }
-
-        $insertLease->execute([
-            'tenant_id' => $tenantId,
-            'unit_id' => $unitId,
-            'rent_amount' => $monthlyRentDecimal,
-            'start_date' => $leaseStart,
-            'status' => 'active',
-        ]);
-
-        $insertRentSchedule->execute([
-            'tenant_id' => $tenantId,
-            'month' => $month,
-            'expected_rent' => $monthlyRentDecimal,
-            'due_date' => $dueDate,
-            'status' => $scheduleStatus,
-        ]);
+        $tenantService->ensureCurrentMonthBilling($tenantId, (float) $monthlyRentDecimal, $paymentDate);
 
         $insertPayment->execute([
-            'tenant_id' => $tenantId,
-            'monthly_rent' => $monthlyRentDecimal,
-            'amount_paid' => $amountPaidDecimal,
-            'payment_date' => $paymentDate,
-            'month' => $month,
-            'payment_status' => $paymentStatus,
+            $tenantId,
+            $billingMonth,
+            $monthlyRentDecimal,
+            $amountPaidDecimal,
+            $paymentDate,
+            $month,
+            $paymentStatus,
         ]);
 
         $processed++;

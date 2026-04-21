@@ -5,37 +5,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/layout.php';
-require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../modules/DashboardService.php';
 
 requireAuth();
 
-$pdo = Database::connection();
-
-$summaryStmt = $pdo->prepare(
-    "SELECT
-        COALESCE(SUM(monthly_rent), 0) AS total_expected,
-        COALESCE(SUM(amount_paid), 0) AS total_paid,
-        COALESCE(SUM(monthly_rent - amount_paid), 0) AS total_outstanding
-    FROM payments"
-);
-$summaryStmt->execute();
-$summaryRow = $summaryStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0, 'total_outstanding' => 0];
-
-$expected = (float) $summaryRow['total_expected'];
-$paid = (float) $summaryRow['total_paid'];
-$outstanding = max((float) $summaryRow['total_outstanding'], 0);
-
-$summary = [
-    'expected' => $expected,
-    'paid' => $paid,
-    'outstanding' => $outstanding,
-    'collection_percent' => $expected > 0 ? round(($paid / $expected) * 100, 2) : 0,
-];
-
+$selectedMonth = monthStart((string) ($_GET['month'] ?? date('Y-m-01')));
 $service = new DashboardService();
+$kpis = $service->portfolioKpis($selectedMonth);
 $trend = $service->monthlyTrend();
-$distribution = $service->paymentStatusDistribution(monthStart((string) ($_GET['month'] ?? date('Y-m-01'))));
+$distribution = $service->paymentStatusDistribution($selectedMonth);
 
 renderHeader('Dashboard');
 ?>
@@ -44,20 +22,28 @@ renderHeader('Dashboard');
 </section>
 <section class="cards">
     <article class="card metric">
-        <span class="metric-label">Total Expected Rent:</span>
-        <strong><span class="card-value"><?= formatKsh((float) $summary['expected']) ?></span></strong>
+        <span class="metric-label">Total Potential Revenue:</span>
+        <strong><span class="card-value"><?= formatKsh((float) $kpis['total_expected']) ?></span></strong>
     </article>
     <article class="card metric paid">
-        <span class="metric-label">Total Paid:</span>
-        <strong><span class="card-value"><?= formatKsh((float) $summary['paid']) ?></span></strong>
-    </article>
-    <article class="card metric unpaid">
-        <span class="metric-label">Outstanding Rent:</span>
-        <strong><span class="card-value"><?= formatKsh((float) $summary['outstanding']) ?></span></strong>
+        <span class="metric-label">Actual Revenue:</span>
+        <strong><span class="card-value"><?= formatKsh((float) $kpis['total_paid']) ?></span></strong>
     </article>
     <article class="card metric">
-        <span class="metric-label">Collection %:</span>
-        <strong><span class="card-value"><?= number_format($summary['collection_percent'], 2) ?>%</span></strong>
+        <span class="metric-label">Collection Efficiency:</span>
+        <strong><span class="card-value"><?= number_format((float) $kpis['collection_efficiency'], 2) ?>%</span></strong>
+    </article>
+    <article class="card metric unpaid">
+        <span class="metric-label">Arrears Trend (Portfolio Debt):</span>
+        <strong><span class="card-value"><?= formatKsh((float) $kpis['arrears_trend']) ?></span></strong>
+    </article>
+    <article class="card metric">
+        <span class="metric-label">Occupancy Rate:</span>
+        <strong><span class="card-value"><?= number_format((float) $kpis['occupancy_rate'], 2) ?>% (<?= (int) $kpis['occupied_units'] ?>/<?= (int) $kpis['total_units'] ?>)</span></strong>
+    </article>
+    <article class="card metric">
+        <span class="metric-label">Late Payment Alert (&gt; 10th):</span>
+        <strong><span class="card-value"><?= (int) $kpis['late_payment_alert'] ?></span></strong>
     </article>
 </section>
 <section class="charts-grid">

@@ -16,37 +16,63 @@ final class PaymentService
             $day = (int) date('d', strtotime($paymentDate));
             $status = $day <= 10 ? 'On Time' : 'Late';
 
-            $sql = 'INSERT INTO payments (tenant_id, billing_month, amount_paid, payment_date, user_id, status) VALUES (?, ?, ?, ?, ?, ?)';
+            $expectedStmt = $pdo->prepare(
+                'SELECT COALESCE(MAX(rs.expected_rent), MAX(l.rent_amount), 0)
+                 FROM tenants t
+                 LEFT JOIN rent_schedule rs ON rs.tenant_id = t.id AND rs.month = ?
+                 LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = ?
+                 WHERE t.id = ?'
+            );
+            $expectedStmt->execute([$monthStart, 'active', $tenantId]);
+            $expectedRent = (float) ($expectedStmt->fetchColumn() ?: 0);
+
+            $insertSchedule = $pdo->prepare(
+                'INSERT INTO rent_schedule (tenant_id, month, expected_rent, due_date, status)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE expected_rent = VALUES(expected_rent), due_date = VALUES(due_date)'
+            );
+            $insertSchedule->execute([
+                $tenantId,
+                $monthStart,
+                $expectedRent,
+                (new DateTimeImmutable($monthStart))->format('Y-m-10'),
+                'unpaid',
+            ]);
+
+            $sql = 'INSERT INTO payments (tenant_id, billing_month, monthly_rent, amount_paid, payment_date, user_id, status, month) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $tenantId,
                 $billingMonth,
+                $expectedRent,
                 $amountPaid,
                 $paymentDate,
                 $userId,
                 $status,
+                $monthStart,
             ]);
 
             $statusSql = "
                 UPDATE rent_schedule rs
-                JOIN (
-                    SELECT tenant_id, billing_month AS month, SUM(amount_paid) total_paid
+                LEFT JOIN (
+                    SELECT tenant_id, month, SUM(amount_paid) total_paid
                     FROM payments
-                    WHERE tenant_id = ? AND billing_month = ?
-                    GROUP BY tenant_id, billing_month
+                    WHERE tenant_id = ? AND month = ?
+                    GROUP BY tenant_id, month
                 ) p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
                 SET rs.status = CASE
-                    WHEN p.total_paid >= rs.expected_rent THEN 'paid'
-                    WHEN p.total_paid > 0 THEN 'partial'
+                    WHEN COALESCE(p.total_paid, 0) >= rs.expected_rent THEN 'paid'
+                    WHEN COALESCE(p.total_paid, 0) > 0 THEN 'partial'
                     ELSE 'unpaid'
                 END
                 WHERE rs.tenant_id = ? AND rs.month = ?
             ";
 
             $statusStmt = $pdo->prepare($statusSql);
-            $statusStmt->execute([$tenantId, $billingMonth, $tenantId, $monthStart]);
+            $statusStmt->execute([$tenantId, $monthStart, $tenantId, $monthStart]);
 
             $pdo->commit();
+
             return true;
         } catch (Throwable $e) {
             $pdo->rollBack();
