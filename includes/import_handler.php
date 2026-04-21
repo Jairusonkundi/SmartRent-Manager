@@ -10,32 +10,43 @@ require_once __DIR__ . '/../modules/PropertyService.php';
 
 requireAuth();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /public/upload_csv.php');
+$isAjaxRequest = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+
+$respond = static function (string $status, string $message, string $redirect) use ($isAjaxRequest): void {
+    if ($isAjaxRequest) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => $status,
+            'message' => $message,
+            'redirect' => $redirect,
+        ]);
+        exit;
+    }
+
+    setFlash($status === 'success' ? 'success' : 'danger', $message);
+    header("Location: {$redirect}");
     exit;
+};
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $respond('error', 'Invalid request method.', '/public/upload_csv.php');
 }
 
 if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-    setFlash('danger', 'Please select a valid CSV file to upload.');
-    header('Location: /public/upload_csv.php');
-    exit;
+    $respond('error', 'Please select a valid CSV file to upload.', '/public/upload_csv.php');
 }
 
 $csvPath = $_FILES['csv_file']['tmp_name'];
 $handle = fopen($csvPath, 'rb');
 
 if ($handle === false) {
-    setFlash('danger', 'Unable to read the uploaded file.');
-    header('Location: /public/upload_csv.php');
-    exit;
+    $respond('error', 'Unable to read the uploaded file.', '/public/upload_csv.php');
 }
 
 $headers = fgetcsv($handle);
 if ($headers === false) {
     fclose($handle);
-    setFlash('danger', 'The CSV appears to be empty.');
-    header('Location: /public/upload_csv.php');
-    exit;
+    $respond('error', 'The CSV appears to be empty.', '/public/upload_csv.php');
 }
 
 $requiredHeaders = [
@@ -76,18 +87,14 @@ foreach ($headers as $idx => $header) {
 foreach ($requiredHeaders as $requiredHeader) {
     if (!array_key_exists($requiredHeader, $headerMap)) {
         fclose($handle);
-        setFlash('danger', "Missing required CSV header: {$requiredHeader}");
-        header('Location: /public/upload_csv.php');
-        exit;
+        $respond('error', "Missing required CSV header: {$requiredHeader}", '/public/upload_csv.php');
     }
 }
 
 foreach (array_keys($monthColumnMap) as $requiredHeader) {
     if (!array_key_exists($requiredHeader, $headerMap)) {
         fclose($handle);
-        setFlash('danger', "Missing required CSV header: {$requiredHeader}");
-        header('Location: /public/upload_csv.php');
-        exit;
+        $respond('error', "Missing required CSV header: {$requiredHeader}", '/public/upload_csv.php');
     }
 }
 
@@ -187,12 +194,8 @@ try {
     }
 
     fclose($handle);
-    setFlash('danger', 'Error importing data.');
-    header('Location: /public/upload_csv.php');
-    exit;
+    $respond('error', 'Error importing data.', '/public/upload_csv.php');
 }
 
 fclose($handle);
-setFlash('success', 'Data imported successfully!');
-header('Location: /public/dashboard.php');
-exit;
+$respond('success', 'Data imported successfully!', '/public/dashboard.php');
