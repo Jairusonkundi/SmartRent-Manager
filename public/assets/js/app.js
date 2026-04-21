@@ -9,11 +9,14 @@ const drawDashboard = () => {
       }))
     : [];
   const distribution = Array.isArray(window.dashboardData.distribution) ? window.dashboardData.distribution : [];
-  const formatKsh = value => `KSH ${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  const formatKsh = value => `KSH ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const labels = trend.map(row => row.month_key);
   const expected = trend.map(row => row.expected);
   const paid = trend.map(row => row.paid);
+  const paidLast6 = Array.isArray(window.dashboardData.paidLast6)
+    ? window.dashboardData.paidLast6.map(value => Number(value || 0))
+    : paid;
 
   const incomeTrendCanvas = document.getElementById('incomeTrend');
   if (incomeTrendCanvas) {
@@ -21,7 +24,7 @@ const drawDashboard = () => {
       type: 'line',
       data: {
         labels,
-        datasets: [{ label: 'Paid Income (KSH)', data: paid, borderColor: '#198754', tension: 0.3 }]
+        datasets: [{ label: 'Paid Income (KSH)', data: paidLast6, borderColor: '#198754', tension: 0.3 }]
       },
       options: {
         scales: {
@@ -102,7 +105,7 @@ const drawBudget = () => {
         paid: Number(x.paid || 0)
       }))
     : [];
-  const formatKsh = value => `KSH ${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  const formatKsh = value => `KSH ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const monthlyCanvas = document.getElementById('monthlyBudget');
   if (monthlyCanvas) {
