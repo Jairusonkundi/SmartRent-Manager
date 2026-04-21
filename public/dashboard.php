@@ -9,23 +9,69 @@ require_once __DIR__ . '/../config/database.php';
 
 requireAuth();
 
-$selectedMonth = monthStart((string) ($_GET['month'] ?? date('Y-m-01')));
-$selectedBillingMonth = date('Y-m', strtotime($selectedMonth));
-$monthStart = date('Y-m-01', strtotime($selectedMonth));
-$monthEnd = date('Y-m-t', strtotime($selectedMonth));
+$selectedMonth = date('Y-m', strtotime((string) ($_GET['month'] ?? date('Y-m'))));
+$view = (string) ($_GET['view'] ?? 'monthly');
+$view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
 
 $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
-$expectedStmt = $pdo->prepare('SELECT COALESCE(SUM(monthly_rent), 0) FROM payments WHERE billing_month = ?');
-$expectedStmt->execute([$selectedBillingMonth]);
-$totalExpected = (float) ($expectedStmt->fetchColumn() ?: 0);
+$currentMonth = date('Y-m');
+$currentMonthRevenueStmt = $pdo->prepare('SELECT COALESCE(SUM(amount_paid), 0) FROM payments WHERE billing_month = ?');
+$currentMonthRevenueStmt->execute([$currentMonth]);
+$currentMonthRevenue = (float) ($currentMonthRevenueStmt->fetchColumn() ?: 0.0);
 
-$paidStmt = $pdo->prepare('SELECT COALESCE(SUM(amount_paid), 0) FROM payments WHERE billing_month = ?');
-$paidStmt->execute([$selectedBillingMonth]);
-$totalPaid = (float) ($paidStmt->fetchColumn() ?: 0);
+$currentQuarter = (int) ceil(((int) date('n')) / 3);
+$currentQuarterStartMonth = sprintf('%d-%02d', (int) date('Y'), (($currentQuarter - 1) * 3) + 1);
+$previousQuarterStartMonth = date('Y-m', strtotime($currentQuarterStartMonth . '-01 -3 months'));
 
-$arrears = max($totalExpected - $totalPaid, 0);
+$quarterRangeStmt = $pdo->prepare(
+    'SELECT COALESCE(SUM(amount_paid), 0)
+     FROM payments
+     WHERE billing_month >= ? AND billing_month <= ?'
+);
+$quarterRangeStmt->execute([$currentQuarterStartMonth, date('Y-m')]);
+$currentQuarterPaid = (float) ($quarterRangeStmt->fetchColumn() ?: 0.0);
+$quarterRangeStmt->execute([$previousQuarterStartMonth, date('Y-m', strtotime($currentQuarterStartMonth . '-01 -1 month'))]);
+$previousQuarterPaid = (float) ($quarterRangeStmt->fetchColumn() ?: 0.0);
+$quarterlyGrowth = $previousQuarterPaid > 0
+    ? (($currentQuarterPaid - $previousQuarterPaid) / $previousQuarterPaid) * 100
+    : ($currentQuarterPaid > 0 ? 100.0 : 0.0);
+
+$periodStart = $selectedMonth;
+$periodEnd = $selectedMonth;
+if ($view === 'quarterly') {
+    $baseDate = new DateTimeImmutable($selectedMonth . '-01');
+    $quarter = (int) ceil(((int) $baseDate->format('n')) / 3);
+    $quarterStartMonth = (($quarter - 1) * 3) + 1;
+    $periodStart = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth, 1)->format('Y-m');
+    $periodEnd = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth + 2, 1)->format('Y-m');
+}
+
+$periodTotalsStmt = $pdo->prepare(
+    'SELECT
+        COALESCE(SUM(amount_expected), 0) AS total_expected,
+        COALESCE(SUM(amount_paid), 0) AS total_paid
+     FROM payments
+     WHERE billing_month >= ? AND billing_month <= ?'
+);
+$periodTotalsStmt->execute([$periodStart, $periodEnd]);
+$periodTotals = $periodTotalsStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0];
+
+$totalExpected = (float) ($periodTotals['total_expected'] ?? 0.0);
+$totalPaid = (float) ($periodTotals['total_paid'] ?? 0.0);
+$arrearsStmt = $pdo->prepare(
+    "SELECT COALESCE(SUM(amount_expected - amount_paid), 0)
+     FROM payments
+     WHERE billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
+       AND amount_paid < amount_expected"
+);
+$arrearsStmt->execute();
+$arrears = max((float) ($arrearsStmt->fetchColumn() ?: 0.0), 0.0);
+
+$budgetVarianceAmount = (float) $totalPaid - (float) $totalExpected;
+$budgetVariancePercent = $totalExpected > 0 ? ($budgetVarianceAmount / $totalExpected) * 100 : 0.0;
+$budgetBadgeClass = $budgetVarianceAmount >= 0 ? 'paid' : 'unpaid';
 
 $occupancyStmt = $pdo->prepare(
     'SELECT COUNT(*) AS total_units, COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS occupied_units FROM units'
@@ -37,32 +83,27 @@ $occupiedUnits = (int) ($occupancyRow['occupied_units'] ?? 0);
 $occupancyRate = $totalUnits > 0 ? round(($occupiedUnits / $totalUnits) * 100, 2) : 0.0;
 
 $lateStmt = $pdo->prepare('SELECT COUNT(*) FROM payments WHERE payment_date >= ? AND payment_date <= ? AND DAY(payment_date) > 10');
-$lateStmt->execute([$monthStart, $monthEnd]);
+$lateStmt->execute([$periodStart . '-01', date('Y-m-t', strtotime($periodEnd . '-01'))]);
 $latePaymentAlert = (int) ($lateStmt->fetchColumn() ?: 0);
 
-$trendStmt = $pdo->prepare(
+$trendStmt = $pdo->query(
     'SELECT billing_month AS month_key,
-            COALESCE(SUM(monthly_rent), 0) AS expected,
+            COALESCE(SUM(amount_expected), 0) AS expected,
             COALESCE(SUM(amount_paid), 0) AS paid
      FROM payments
      GROUP BY billing_month
-     ORDER BY billing_month ASC'
+     ORDER BY billing_month DESC
+     LIMIT 6'
 );
-$trendStmt->execute();
-$trend = $trendStmt->fetchAll() ?: [];
+$trend = array_reverse($trendStmt->fetchAll() ?: []);
 
 $distributionStmt = $pdo->prepare(
-    "SELECT CASE
-            WHEN COALESCE(SUM(amount_paid), 0) >= COALESCE(SUM(monthly_rent), 0) THEN 'paid'
-            WHEN COALESCE(SUM(amount_paid), 0) <= 0 THEN 'unpaid'
-            ELSE 'partial'
-        END AS status,
-        COUNT(*) AS total
+    "SELECT collection_status AS status, COUNT(*) AS total
      FROM payments
-     WHERE billing_month = ?
-     GROUP BY status"
+     WHERE billing_month >= ? AND billing_month <= ?
+     GROUP BY collection_status"
 );
-$distributionStmt->execute([$selectedBillingMonth]);
+$distributionStmt->execute([$periodStart, $periodEnd]);
 $distribution = $distributionStmt->fetchAll() ?: [];
 
 $collectionEfficiency = $totalExpected > 0 ? round(($totalPaid / $totalExpected) * 100, 2) : 0.0;
@@ -72,22 +113,49 @@ renderHeader('Dashboard');
 <section class="card upload-cta">
     <a class="button-link" href="/public/upload_csv.php">Upload Monthly Data</a>
 </section>
+<section class="card">
+    <form method="get" class="control-bar">
+        <label>View
+            <select name="view">
+                <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                <option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option>
+            </select>
+        </label>
+        <label>Reference Month
+            <input type="month" name="month" value="<?= h($selectedMonth) ?>">
+        </label>
+        <button type="submit">Apply</button>
+    </form>
+</section>
 <section class="cards">
+    <article class="card metric paid">
+        <span class="metric-label">Current Month Revenue (<?= h($currentMonth) ?>):</span>
+        <strong><span class="card-value">KSH <?= number_format($currentMonthRevenue, 2) ?></span></strong>
+    </article>
     <article class="card metric">
-        <span class="metric-label">Total Potential Revenue:</span>
+        <span class="metric-label">Selected Period Expected Revenue:</span>
         <strong><span class="card-value">KSH <?= number_format($totalExpected, 2) ?></span></strong>
     </article>
     <article class="card metric paid">
-        <span class="metric-label">Actual Revenue:</span>
+        <span class="metric-label">Selected Period Actual Revenue:</span>
         <strong><span class="card-value">KSH <?= number_format($totalPaid, 2) ?></span></strong>
+    </article>
+    <article class="card metric <?= $budgetBadgeClass === 'paid' ? 'paid' : 'unpaid' ?>">
+        <span class="metric-label">Budget Variance:</span>
+        <strong><span class="card-value">KSH <?= number_format($budgetVarianceAmount, 2) ?></span></strong>
+        <span class="badge <?= h($budgetBadgeClass) ?>"><?= number_format($budgetVariancePercent, 2) ?>%</span>
+    </article>
+    <article class="card metric">
+        <span class="metric-label">Quarterly Growth (Current vs Previous 3 months):</span>
+        <strong><span class="card-value"><?= number_format($quarterlyGrowth, 2) ?>%</span></strong>
+    </article>
+    <article class="card metric unpaid">
+        <span class="metric-label">Arrears (Past + Current Months Only):</span>
+        <strong><span class="card-value">KSH <?= number_format($arrears, 2) ?></span></strong>
     </article>
     <article class="card metric">
         <span class="metric-label">Collection Efficiency:</span>
         <strong><span class="card-value"><?= number_format($collectionEfficiency, 2) ?>%</span></strong>
-    </article>
-    <article class="card metric unpaid">
-        <span class="metric-label">Arrears Trend (Portfolio Debt):</span>
-        <strong><span class="card-value">KSH <?= number_format($arrears, 2) ?></span></strong>
     </article>
     <article class="card metric">
         <span class="metric-label">Occupancy Rate:</span>
@@ -99,8 +167,8 @@ renderHeader('Dashboard');
     </article>
 </section>
 <section class="charts-grid">
-    <article class="card"><h3>Monthly Income Trend</h3><canvas id="incomeTrend"></canvas></article>
-    <article class="card"><h3>Expected vs Paid</h3><canvas id="expectedVsPaid"></canvas></article>
+    <article class="card"><h3>Revenue Trend (Last 6 Months)</h3><canvas id="incomeTrend"></canvas></article>
+    <article class="card"><h3>Collection vs. Target</h3><canvas id="expectedVsPaid"></canvas></article>
     <article class="card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
 </section>
 <script>
