@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $paymentService = new PaymentService();
         $paymentService->recordPayment($tenant_id, $billing_month, $amount, $date, $_SESSION['user_id']);
-        setFlash('success', 'Payment of KSH ' . number_format($amount, 2) . ' recorded successfully!');
+        setFlash('success', 'Payment of ' . formatKsh($amount) . ' recorded successfully!');
     }
 
     header('Location: /public/payments.php');
@@ -54,6 +54,8 @@ $search = trim((string) ($_GET['search'] ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 $statusFilter = (string) ($_GET['status'] ?? 'all');
 $allowedStatuses = ['On Time', 'Late'];
+$dateFrom = (string) ($_GET['date_from'] ?? '');
+$dateTo = (string) ($_GET['date_to'] ?? '');
 
 if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true)) {
     $statusFilter = 'all';
@@ -79,6 +81,16 @@ if ($propertyFilter !== 'all') {
 if ($statusFilter !== 'all') {
     $where[] = 'p.status = ?';
     array_push($params, $statusFilter);
+}
+
+if ($dateFrom !== '') {
+    $where[] = 'p.payment_date >= ?';
+    array_push($params, $dateFrom);
+}
+
+if ($dateTo !== '') {
+    $where[] = 'p.payment_date <= ?';
+    array_push($params, $dateTo);
 }
 
 $whereSql = implode(' AND ', $where);
@@ -120,6 +132,8 @@ $paginationHtml = renderPaginationLinks($totalRecords, $page, $paginationLimit, 
     'search' => $search,
     'property_id' => $propertyFilter,
     'status' => $statusFilter,
+    'date_from' => $dateFrom,
+    'date_to' => $dateTo,
 ]);
 
 renderHeader('Payments');
@@ -164,6 +178,12 @@ renderHeader('Payments');
                     </option>
                 <?php endforeach; ?>
             </select>
+        </label>
+        <label>Date From
+            <input type="date" name="date_from" value="<?= h($dateFrom) ?>">
+        </label>
+        <label>Date To
+            <input type="date" name="date_to" value="<?= h($dateTo) ?>">
         </label>
         <label>Status
             <select name="status">

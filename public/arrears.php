@@ -23,6 +23,8 @@ $offset = $isAllLimit ? 0 : ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 $statusFilter = (string) ($_GET['status'] ?? 'all');
+$dateFrom = (string) ($_GET['date_from'] ?? '');
+$dateTo = (string) ($_GET['date_to'] ?? '');
 $allowedStatuses = ['Paid', 'Partial', 'Unpaid'];
 
 if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true)) {
@@ -31,17 +33,16 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
-$where = ['1=1', 'rs.month <= CURRENT_DATE'];
+$where = ['1=1'];
 $params = [];
-$amountPaidExpr = 'COALESCE(SUM(p.amount_paid), 0)';
-$monthlyRentExpr = 'COALESCE(MAX(p.monthly_rent), rs.expected_rent)';
-$balanceExpr = "({$monthlyRentExpr} - {$amountPaidExpr})";
-$having = ["{$balanceExpr} > 0"];
-$rentStatusExpr = "CASE
-            WHEN {$balanceExpr} <= 0 THEN 'Paid'
-            WHEN {$amountPaidExpr} = 0 THEN 'Unpaid'
-            ELSE 'Partial'
-       END";
+$totalExpectedExpr = 'COALESCE(SUM(rs.expected_rent), 0)';
+$totalPaidExpr = 'COALESCE(SUM(p.amount_paid), 0)';
+$totalDebtExpr = "({$totalExpectedExpr} - {$totalPaidExpr})";
+$statusExpr = "CASE
+        WHEN {$totalDebtExpr} <= 0 THEN 'Paid'
+        WHEN {$totalPaidExpr} = 0 THEN 'Unpaid'
+        ELSE 'Partial'
+    END";
 
 if ($search !== '') {
     $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
@@ -54,8 +55,19 @@ if ($propertyFilter !== 'all') {
     array_push($params, (int) $propertyFilter);
 }
 
+if ($dateFrom !== '') {
+    $where[] = 'rs.month >= ?';
+    array_push($params, date('Y-m-01', strtotime($dateFrom)));
+}
+
+if ($dateTo !== '') {
+    $where[] = 'rs.month <= ?';
+    array_push($params, date('Y-m-01', strtotime($dateTo)));
+}
+
+$having = ["{$totalDebtExpr} > 0"];
 if ($statusFilter !== 'all') {
-    $having[] = "{$rentStatusExpr} = ?";
+    $having[] = "{$statusExpr} = ?";
     array_push($params, $statusFilter);
 }
 
@@ -63,35 +75,34 @@ $whereSql = implode(' AND ', $where);
 $havingSql = implode(' AND ', $having);
 
 $baseFrom = "
-FROM rent_schedule rs
-JOIN tenants t ON t.id = rs.tenant_id
+FROM tenants t
 JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
 JOIN units u ON u.id = l.unit_id
 JOIN properties pr ON pr.id = u.property_id
+LEFT JOIN rent_schedule rs ON rs.tenant_id = t.id
 LEFT JOIN payments p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
 WHERE {$whereSql}
-GROUP BY rs.id, t.name, rs.month, rs.due_date, rs.expected_rent, u.unit_number, pr.name
+GROUP BY t.id, t.name, u.unit_number, pr.name
 HAVING {$havingSql}
 ";
 
-$countSql = "SELECT COUNT(*) FROM (SELECT rs.id {$baseFrom}) AS sub";
+$countSql = "SELECT COUNT(*) FROM (SELECT t.id {$baseFrom}) AS sub";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
 $totalRecords = (int) $countStmt->fetchColumn();
 
 $sql = "
 SELECT t.name,
-       rs.month,
-       rs.due_date,
-       {$monthlyRentExpr} AS expected_rent,
        u.unit_number,
        pr.name AS property_name,
-       {$amountPaidExpr} AS paid,
-       {$balanceExpr} AS balance,
-       {$rentStatusExpr} AS rent_status,
-       CASE WHEN COALESCE(MAX(p.payment_date), '9999-12-31') > rs.due_date THEN 'Late' ELSE 'On Time' END AS timing_status
+       MIN(rs.month) AS first_due_month,
+       MAX(rs.month) AS last_due_month,
+       {$totalExpectedExpr} AS total_expected,
+       {$totalPaidExpr} AS total_paid,
+       {$totalDebtExpr} AS total_debt,
+       {$statusExpr} AS rent_status
 {$baseFrom}
-ORDER BY balance DESC, rs.month ASC
+ORDER BY total_debt DESC, t.name ASC
 ";
 
 if (!$isAllLimit) {
@@ -109,6 +120,8 @@ $paginationHtml = renderPaginationLinks($totalRecords, $page, $paginationLimit, 
     'search' => $search,
     'property_id' => $propertyFilter,
     'status' => $statusFilter,
+    'date_from' => $dateFrom,
+    'date_to' => $dateTo,
 ]);
 
 renderHeader('Arrears');
@@ -137,6 +150,12 @@ renderHeader('Arrears');
                 <?php endforeach; ?>
             </select>
         </label>
+        <label>Date From
+            <input type="month" name="date_from" value="<?= h($dateFrom) ?>">
+        </label>
+        <label>Date To
+            <input type="month" name="date_to" value="<?= h($dateTo) ?>">
+        </label>
         <label>Status
             <select name="status">
                 <option value="all" <?= $statusFilter === 'all' ? 'selected' : '' ?>>All Statuses</option>
@@ -150,7 +169,7 @@ renderHeader('Arrears');
     </form>
     <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
     <table class="sortable">
-        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th><th>Timing</th></tr></thead>
+        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Debt Window</th><th>Total Expected</th><th>Total Paid</th><th>Total Debt</th><th>Status</th></tr></thead>
         <tbody>
             <?php foreach ($arrears as $index => $row): ?>
                 <?php $rowNumber = $offset + $index + 1; ?>
@@ -159,12 +178,15 @@ renderHeader('Arrears');
                     <td><?= h($row['name']) ?></td>
                     <td><?= h($row['property_name']) ?></td>
                     <td><?= h($row['unit_number']) ?></td>
-                    <td><?= h(date('M Y', strtotime($row['month']))) ?></td>
-                    <td><?= formatKsh((float) $row['expected_rent']) ?></td>
-                    <td><?= formatKsh((float) $row['paid']) ?></td>
-                    <td class="text-unpaid"><?= formatKsh((float) $row['balance']) ?></td>
+                    <td>
+                        <?= $row['first_due_month'] ? h(date('M Y', strtotime((string) $row['first_due_month']))) : '-' ?>
+                        -
+                        <?= $row['last_due_month'] ? h(date('M Y', strtotime((string) $row['last_due_month']))) : '-' ?>
+                    </td>
+                    <td><?= formatKsh((float) $row['total_expected']) ?></td>
+                    <td><?= formatKsh((float) $row['total_paid']) ?></td>
+                    <td class="text-unpaid"><?= formatKsh((float) $row['total_debt']) ?></td>
                     <td><span class="badge <?= strtolower($row['rent_status']) === 'paid' ? 'paid' : (strtolower($row['rent_status']) === 'partial' ? 'partial' : 'unpaid') ?>"><?= h($row['rent_status']) ?></span></td>
-                    <td><span class="badge <?= strtolower($row['timing_status']) === 'late' ? 'unpaid' : 'paid' ?>"><?= h($row['timing_status']) ?></span></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
