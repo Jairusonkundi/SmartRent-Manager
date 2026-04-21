@@ -52,7 +52,7 @@ LEFT JOIN units u ON u.id = l.unit_id
 LEFT JOIN properties pr ON pr.id = u.property_id
 WHERE {$whereSql}
 GROUP BY p.tenant_id, t.name, pr.name, u.unit_number
-HAVING (COALESCE(MAX(p.monthly_rent), 0) - COALESCE(SUM(p.amount_paid), 0)) > 0
+HAVING (COALESCE(MAX(p.amount_expected), 0) - COALESCE(SUM(p.amount_paid), 0)) > 0
 ";
 
 $countSql = "SELECT COUNT(*) FROM (SELECT p.tenant_id {$baseSql}) AS arrears_count";
@@ -65,9 +65,9 @@ SELECT
     t.name,
     COALESCE(pr.name, 'Unassigned Property') AS property_name,
     COALESCE(u.unit_number, '-') AS unit_number,
-    COALESCE(MAX(p.monthly_rent), 0) AS monthly_rent,
+    COALESCE(MAX(p.amount_expected), 0) AS monthly_rent,
     COALESCE(SUM(p.amount_paid), 0) AS amount_paid,
-    (COALESCE(MAX(p.monthly_rent), 0) - COALESCE(SUM(p.amount_paid), 0)) AS balance
+    (COALESCE(MAX(p.amount_expected), 0) - COALESCE(SUM(p.amount_paid), 0)) AS balance
 {$baseSql}
 ORDER BY balance DESC, t.name ASC
 ";

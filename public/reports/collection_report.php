@@ -9,18 +9,32 @@ use Dompdf\Dompdf;
 
 $month = $_GET['month'] ?? date('Y-m-01');
 $pdo = Database::connection();
+$billingMonth = date('Y-m', strtotime($month));
 $stmt = $pdo->prepare(
-    "SELECT t.name, rs.expected_rent, COALESCE(SUM(p.amount_paid),0) paid,
-            rs.expected_rent - COALESCE(SUM(p.amount_paid),0) outstanding
-     FROM rent_schedule rs
-     JOIN tenants t ON t.id = rs.tenant_id
-     LEFT JOIN payments p ON p.tenant_id = rs.tenant_id AND p.month = rs.month
-     WHERE rs.month = :month
-     GROUP BY t.name, rs.expected_rent
+    "SELECT t.name,
+            p.amount_expected AS expected_rent,
+            p.amount_paid AS paid,
+            p.amount_expected - p.amount_paid AS outstanding
+     FROM payments p
+     JOIN tenants t ON t.id = p.tenant_id
+     WHERE p.billing_month = ?
      ORDER BY t.name"
 );
-$stmt->execute(['month' => date('Y-m-01', strtotime($month))]);
+$stmt->execute([$billingMonth]);
 $rows = $stmt->fetchAll();
+
+$vacancyStmt = $pdo->prepare(
+    "SELECT
+        COUNT(*) AS total_units,
+        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS occupied_units
+     FROM units"
+);
+$vacancyStmt->execute(['occupied']);
+$vacancy = $vacancyStmt->fetch() ?: ['total_units' => 0, 'occupied_units' => 0];
+$totalUnits = (int) ($vacancy['total_units'] ?? 0);
+$occupiedUnits = (int) ($vacancy['occupied_units'] ?? 0);
+$vacantUnits = max($totalUnits - $occupiedUnits, 0);
+$vacancyRate = $totalUnits > 0 ? round(($vacantUnits / $totalUnits) * 100, 2) : 0.0;
 
 $tableRows = '';
 foreach ($rows as $row) {
@@ -33,7 +47,15 @@ foreach ($rows as $row) {
     );
 }
 
-$html = '<h1>Collection Report</h1><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Tenant</th><th>Expected</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody>' . $tableRows . '</tbody></table>';
+$html = sprintf(
+    '<h1>Collection vs. Vacancy Report</h1><p>Month: %s</p><ul><li>Total Units: %d</li><li>Occupied Units: %d</li><li>Vacant Units: %d</li><li>Vacancy Rate: %0.2f%%</li></ul><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Tenant</th><th>Expected</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody>%s</tbody></table>',
+    htmlspecialchars(date('F Y', strtotime($billingMonth . '-01')), ENT_QUOTES, 'UTF-8'),
+    $totalUnits,
+    $occupiedUnits,
+    $vacantUnits,
+    $vacancyRate,
+    $tableRows
+);
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 $dompdf = new Dompdf();
