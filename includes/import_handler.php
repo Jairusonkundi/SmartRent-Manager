@@ -46,8 +46,21 @@ $requiredHeaders = [
     'Tenant_Phone',
     'Monthly_Rent',
     'Lease_Start',
-    'Payment_Date',
-    'Amount_Paid',
+];
+
+$monthColumnMap = [
+    'Jan_Paid' => '2026-01',
+    'Feb_Paid' => '2026-02',
+    'Mar_Paid' => '2026-03',
+    'Apr_Paid' => '2026-04',
+    'May_Paid' => '2026-05',
+    'Jun_Paid' => '2026-06',
+    'Jul_Paid' => '2026-07',
+    'Aug_Paid' => '2026-08',
+    'Sep_Paid' => '2026-09',
+    'Oct_Paid' => '2026-10',
+    'Nov_Paid' => '2026-11',
+    'Dec_Paid' => '2026-12',
 ];
 
 $headerMap = [];
@@ -61,6 +74,15 @@ foreach ($headers as $idx => $header) {
 }
 
 foreach ($requiredHeaders as $requiredHeader) {
+    if (!array_key_exists($requiredHeader, $headerMap)) {
+        fclose($handle);
+        setFlash('danger', "Missing required CSV header: {$requiredHeader}");
+        header('Location: /public/upload_csv.php');
+        exit;
+    }
+}
+
+foreach (array_keys($monthColumnMap) as $requiredHeader) {
     if (!array_key_exists($requiredHeader, $headerMap)) {
         fclose($handle);
         setFlash('danger', "Missing required CSV header: {$requiredHeader}");
@@ -99,13 +121,8 @@ try {
         $tenantPhone = trim((string) ($row[$headerMap['Tenant_Phone']] ?? ''));
         $monthlyRentRaw = trim((string) ($row[$headerMap['Monthly_Rent']] ?? '0'));
         $leaseStartRaw = trim((string) ($row[$headerMap['Lease_Start']] ?? ''));
-        $paymentDateRaw = trim((string) ($row[$headerMap['Payment_Date']] ?? ''));
-        $amountPaidRaw = trim((string) ($row[$headerMap['Amount_Paid']] ?? '0'));
-
         $monthlyRentNumeric = preg_replace('/[^\d.\-]/', '', str_replace(',', '', $monthlyRentRaw)) ?: '0';
-        $amountPaidNumeric = preg_replace('/[^\d.\-]/', '', str_replace(',', '', $amountPaidRaw)) ?: '0';
         $monthlyRent = (float) $monthlyRentNumeric;
-        $amountPaid = (float) $amountPaidNumeric;
 
         if ($propertyName === '' || $unitNumber === '' || $tenantName === '' || $monthlyRent <= 0) {
             continue;
@@ -114,15 +131,7 @@ try {
         $leaseStartTimestamp = strtotime($leaseStartRaw);
         $leaseStart = $leaseStartTimestamp !== false ? date('Y-m-d', $leaseStartTimestamp) : date('Y-m-d');
 
-        $paymentTimestamp = strtotime($paymentDateRaw);
-        $paymentDate = $paymentTimestamp !== false ? date('Y-m-d', $paymentTimestamp) : $leaseStart;
-
-        $month = date('Y-m-01', strtotime($paymentDate));
-        $billingMonth = date('Y-m', strtotime($paymentDate));
-        $paymentStatus = ((int) date('d', strtotime($paymentDate)) > 10) ? 'Late' : 'On Time';
-
         $monthlyRentDecimal = number_format($monthlyRent, 2, '.', '');
-        $amountPaidDecimal = number_format($amountPaid, 2, '.', '');
 
         $propertyId = $propertyService->upsertProperty($propertyName, 'Unspecified');
         $unitId = $propertyService->upsertUnit($propertyId, $unitNumber, 'occupied');
@@ -130,17 +139,28 @@ try {
 
         $insertLease->execute([$tenantId, $unitId, $monthlyRentDecimal, $leaseStart, 'active']);
 
-        $tenantService->ensureCurrentMonthBilling($tenantId, (float) $monthlyRentDecimal, $paymentDate);
+        foreach ($monthColumnMap as $monthHeader => $billingMonth) {
+            $amountPaidRaw = trim((string) ($row[$headerMap[$monthHeader]] ?? '0'));
+            $amountPaidNumeric = preg_replace('/[^\d.\-]/', '', str_replace(',', '', $amountPaidRaw)) ?: '0';
+            $amountPaid = (float) $amountPaidNumeric;
+            $amountPaidDecimal = number_format(max($amountPaid, 0), 2, '.', '');
 
-        $insertPayment->execute([
-            $tenantId,
-            $billingMonth,
-            $monthlyRentDecimal,
-            $amountPaidDecimal,
-            $paymentDate,
-            $month,
-            $paymentStatus,
-        ]);
+            $month = $billingMonth . '-01';
+            $paymentDate = $month . '-10';
+            $paymentStatus = ((float) $amountPaidDecimal >= (float) $monthlyRentDecimal) ? 'On Time' : (((float) $amountPaidDecimal > 0) ? 'Partial' : 'Unpaid');
+
+            $tenantService->ensureCurrentMonthBilling($tenantId, (float) $monthlyRentDecimal, $paymentDate);
+
+            $insertPayment->execute([
+                $tenantId,
+                $billingMonth,
+                $monthlyRentDecimal,
+                $amountPaidDecimal,
+                $paymentDate,
+                $month,
+                $paymentStatus,
+            ]);
+        }
 
         $processed++;
     }
