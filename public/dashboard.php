@@ -17,9 +17,13 @@ $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 $currentMonth = date('Y-m');
-$currentMonthRevenueStmt = $pdo->prepare('SELECT COALESCE(SUM(amount_paid), 0) FROM payments WHERE billing_month = ?');
-$currentMonthRevenueStmt->execute([$currentMonth]);
-$currentMonthRevenue = (float) ($currentMonthRevenueStmt->fetchColumn() ?: 0.0);
+$currentMonthExpectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount_expected), 0) FROM payments WHERE billing_month = ?');
+$currentMonthExpectedStmt->execute([$currentMonth]);
+$currentMonthExpected = (float) ($currentMonthExpectedStmt->fetchColumn() ?: 0.0);
+
+$currentMonthCollectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount_paid), 0) FROM payments WHERE billing_month = ?');
+$currentMonthCollectedStmt->execute([$currentMonth]);
+$currentMonthCollected = (float) ($currentMonthCollectedStmt->fetchColumn() ?: 0.0);
 
 $currentQuarter = (int) ceil(((int) date('n')) / 3);
 $currentQuarterStartMonth = sprintf('%d-%02d', (int) date('Y'), (($currentQuarter - 1) * 3) + 1);
@@ -63,8 +67,7 @@ $totalPaid = (float) ($periodTotals['total_paid'] ?? 0.0);
 $arrearsStmt = $pdo->prepare(
     "SELECT COALESCE(SUM(amount_expected - amount_paid), 0)
      FROM payments
-     WHERE billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
-       AND amount_paid < amount_expected"
+     WHERE billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')"
 );
 $arrearsStmt->execute();
 $arrears = max((float) ($arrearsStmt->fetchColumn() ?: 0.0), 0.0);
@@ -96,6 +99,7 @@ $trendStmt = $pdo->query(
      LIMIT 6'
 );
 $trend = array_reverse($trendStmt->fetchAll() ?: []);
+$paidLast6 = array_map(static fn(array $row): float => (float) ($row['paid'] ?? 0), $trend);
 
 $distributionStmt = $pdo->prepare(
     "SELECT collection_status AS status, COUNT(*) AS total
@@ -128,9 +132,13 @@ renderHeader('Dashboard');
     </form>
 </section>
 <section class="cards">
+    <article class="card metric">
+        <span class="metric-label">Current Month Expected (<?= h($currentMonth) ?>):</span>
+        <strong><span class="card-value">KSH <?= number_format($currentMonthExpected, 2) ?></span></strong>
+    </article>
     <article class="card metric paid">
-        <span class="metric-label">Current Month Revenue (<?= h($currentMonth) ?>):</span>
-        <strong><span class="card-value">KSH <?= number_format($currentMonthRevenue, 2) ?></span></strong>
+        <span class="metric-label">Current Month Collected (<?= h($currentMonth) ?>):</span>
+        <strong><span class="card-value">KSH <?= number_format($currentMonthCollected, 2) ?></span></strong>
     </article>
     <article class="card metric">
         <span class="metric-label">Selected Period Expected Revenue:</span>
@@ -174,6 +182,7 @@ renderHeader('Dashboard');
 <script>
 window.dashboardData = {
     trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>,
+    paidLast6: <?= json_encode($paidLast6, JSON_THROW_ON_ERROR) ?>,
     distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?>
 };
 </script>

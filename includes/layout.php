@@ -13,7 +13,7 @@ function renderHeader(string $title): void
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; form-action 'self'">
     <title><?= h($title) ?> | SmartRent Manager</title>
     <link rel="stylesheet" href="/public/assets/css/styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>

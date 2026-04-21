@@ -16,6 +16,7 @@ $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
 $service = new BudgetService();
 $monthly = $service->monthlyBreakdown($year);
 $quarterly = $service->quarterlyComparison($year);
+$quarterlyYoY = $service->quarterlyYearOverYear($year);
 
 $periodStart = $selectedMonth;
 $periodEnd = $selectedMonth;
@@ -115,7 +116,8 @@ renderHeader('Budget');
 <script>
 window.budgetData = {
     monthly: <?= json_encode($monthly, JSON_THROW_ON_ERROR) ?>,
-    quarterly: <?= json_encode($quarterly, JSON_THROW_ON_ERROR) ?>
+    quarterly: <?= json_encode($quarterly, JSON_THROW_ON_ERROR) ?>,
+    quarterlyYoY: <?= json_encode($quarterlyYoY, JSON_THROW_ON_ERROR) ?>
 };
 </script>
 <?php renderFooter(); ?>

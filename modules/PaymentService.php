@@ -122,7 +122,7 @@ final class PaymentService
                 COALESCE(u.unit_number, '-') AS unit_number,
                 MAX(p.amount_expected) AS monthly_rent,
                 SUM(p.amount_paid) AS amount_paid,
-                (MAX(p.amount_expected) - SUM(p.amount_paid)) AS balance
+                SUM(p.amount_expected - p.amount_paid) AS balance
             FROM payments p
             JOIN tenants t ON t.id = p.tenant_id
             LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
@@ -130,7 +130,7 @@ final class PaymentService
             LEFT JOIN properties pr ON pr.id = u.property_id
             WHERE {$whereSql}
             GROUP BY p.tenant_id, t.name, pr.name, u.unit_number
-            HAVING (COALESCE(MAX(p.amount_expected), 0) - COALESCE(SUM(p.amount_paid), 0)) > 0
+            HAVING COALESCE(SUM(p.amount_expected - p.amount_paid), 0) > 0
             ORDER BY balance DESC, t.name ASC"
         );
 

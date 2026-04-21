@@ -26,8 +26,8 @@ function login(string $username, string $password): bool
     startSession();
     $pdo = Database::connection();
 
-    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = :username LIMIT 1');
-    $stmt->execute(['username' => trim($username)]);
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ? LIMIT 1');
+    $stmt->execute([trim($username)]);
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {

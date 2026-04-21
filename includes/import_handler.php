@@ -56,7 +56,6 @@ $requiredHeaders = [
     'Tenant_Email',
     'Tenant_Phone',
     'Monthly_Rent',
-    'Lease_Start',
 ];
 
 $monthColumnMap = [
@@ -77,7 +76,7 @@ $monthColumnMap = [
 $headerMap = [];
 foreach ($headers as $idx => $header) {
     $normalizedHeader = preg_replace('/[\x00-\x1F\x80-\xFF]/', '', trim((string) $header));
-    if ($normalizedHeader === null || $normalizedHeader == '') {
+    if ($normalizedHeader === null || $normalizedHeader === '') {
         continue;
     }
 
@@ -108,6 +107,11 @@ $insertLease = $pdo->prepare(
      VALUES (?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE rent_amount = VALUES(rent_amount), status = VALUES(status)'
 );
+$insertSchedule = $pdo->prepare(
+    'INSERT INTO rent_schedule (tenant_id, month, expected_rent, due_date, status)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE expected_rent = VALUES(expected_rent), due_date = VALUES(due_date), status = VALUES(status)'
+);
 $insertPayment = $pdo->prepare(
     'INSERT INTO payments (tenant_id, billing_month, amount_expected, monthly_rent, amount_paid, payment_date, month, collection_status, payment_status, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -126,7 +130,7 @@ try {
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
 
     while (($row = fgetcsv($handle)) !== false) {
-        if (count(array_filter($row, static fn ($value): bool => trim((string) $value) !== '')) === 0) {
+        if (count(array_filter($row, static fn($value): bool => trim((string) $value) !== '')) === 0) {
             continue;
         }
 
@@ -136,7 +140,6 @@ try {
         $tenantEmail = trim((string) ($row[$headerMap['Tenant_Email']] ?? ''));
         $tenantPhone = trim((string) ($row[$headerMap['Tenant_Phone']] ?? ''));
         $monthlyRentRaw = trim((string) ($row[$headerMap['Monthly_Rent']] ?? '0'));
-        $leaseStartRaw = trim((string) ($row[$headerMap['Lease_Start']] ?? ''));
         $monthlyRentNumeric = preg_replace('/[^\d.\-]/', '', str_replace(',', '', $monthlyRentRaw)) ?: '0';
         $monthlyRent = (float) $monthlyRentNumeric;
 
@@ -144,9 +147,7 @@ try {
             continue;
         }
 
-        $leaseStartTimestamp = strtotime($leaseStartRaw);
-        $leaseStart = $leaseStartTimestamp !== false ? date('Y-m-d', $leaseStartTimestamp) : date('Y-m-d');
-
+        $leaseStart = date('Y-m-d');
         $monthlyRentDecimal = number_format($monthlyRent, 2, '.', '');
 
         $propertyId = $propertyService->upsertProperty($propertyName, 'Unspecified');
@@ -161,14 +162,19 @@ try {
             $amountPaid = (float) $amountPaidNumeric;
             $amountPaidDecimal = number_format(max($amountPaid, 0), 2, '.', '');
 
-            $month = $billingMonth . '-01';
-            $paymentDate = $month . '-10';
+            $monthDate = $billingMonth . '-01';
+            $paymentDate = $billingMonth . '-10';
             $collectionStatus = ((float) $amountPaidDecimal >= (float) $monthlyRentDecimal)
                 ? 'Paid'
                 : (((float) $amountPaidDecimal > 0) ? 'Partial' : 'Unpaid');
-            $paymentTimingStatus = 'On Time';
 
-            $tenantService->ensureCurrentMonthBilling($tenantId, (float) $monthlyRentDecimal, $paymentDate);
+            $insertSchedule->execute([
+                $tenantId,
+                $monthDate,
+                $monthlyRentDecimal,
+                $paymentDate,
+                strtolower($collectionStatus),
+            ]);
 
             $insertPayment->execute([
                 $tenantId,
@@ -177,10 +183,10 @@ try {
                 $monthlyRentDecimal,
                 $amountPaidDecimal,
                 $paymentDate,
-                $month,
+                $monthDate,
                 $collectionStatus,
-                $paymentTimingStatus,
-                $paymentTimingStatus,
+                'On Time',
+                'On Time',
             ]);
         }
 
