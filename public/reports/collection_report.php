@@ -5,6 +5,16 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
+$autoloadPath = __DIR__ . '/../../vendor/autoload.php';
+if (!file_exists($autoloadPath)) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo 'Report dependency missing: vendor/autoload.php was not found. Run "composer install" from the project root.';
+    exit;
+}
+
+require_once $autoloadPath;
+
 use Dompdf\Dompdf;
 
 $month = $_GET['month'] ?? date('Y-m-01');
@@ -22,6 +32,19 @@ $stmt = $pdo->prepare(
 );
 $stmt->execute([$billingMonth]);
 $rows = $stmt->fetchAll();
+
+$totalsStmt = $pdo->prepare(
+    'SELECT
+        COALESCE(SUM(amount_expected), 0) AS total_expected,
+        COALESCE(SUM(amount_paid), 0) AS total_paid
+     FROM payments
+     WHERE billing_month = ?'
+);
+$totalsStmt->execute([$billingMonth]);
+$totals = $totalsStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0];
+$totalExpected = (float) ($totals['total_expected'] ?? 0);
+$totalPaid = (float) ($totals['total_paid'] ?? 0);
+$totalOutstanding = max($totalExpected - $totalPaid, 0);
 
 $vacancyStmt = $pdo->prepare(
     "SELECT
@@ -48,18 +71,22 @@ foreach ($rows as $row) {
 }
 
 $html = sprintf(
-    '<h1>Collection vs. Vacancy Report</h1><p>Month: %s</p><ul><li>Total Units: %d</li><li>Occupied Units: %d</li><li>Vacant Units: %d</li><li>Vacancy Rate: %0.2f%%</li></ul><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Tenant</th><th>Expected</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody>%s</tbody></table>',
+    '<h1>Collection vs. Vacancy Report</h1><p>Month: %s</p><ul><li>Total Units: %d</li><li>Occupied Units: %d</li><li>Vacant Units: %d</li><li>Vacancy Rate: %0.2f%%</li><li>Total Expected: %s</li><li>Total Revenue: %s</li><li>Total Outstanding: %s</li></ul><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Tenant</th><th>Expected</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody>%s</tbody></table>',
     htmlspecialchars(date('F Y', strtotime($billingMonth . '-01')), ENT_QUOTES, 'UTF-8'),
     $totalUnits,
     $occupiedUnits,
     $vacantUnits,
     $vacancyRate,
+    formatKsh($totalExpected),
+    formatKsh($totalPaid),
+    formatKsh($totalOutstanding),
     $tableRows
 );
 
-require_once __DIR__ . '/../../vendor/autoload.php';
 $dompdf = new Dompdf();
 $dompdf->loadHtml($html);
 $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
+header('Content-Type: application/pdf');
+header('Content-Disposition: attachment; filename="collection-report.pdf"');
 $dompdf->stream('collection-report.pdf', ['Attachment' => true]);

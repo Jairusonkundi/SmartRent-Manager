@@ -6,6 +6,16 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../modules/DashboardService.php';
 
+$autoloadPath = __DIR__ . '/../../vendor/autoload.php';
+if (!file_exists($autoloadPath)) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo 'Report dependency missing: vendor/autoload.php was not found. Run "composer install" from the project root.';
+    exit;
+}
+
+require_once $autoloadPath;
+
 // Requires dompdf via Composer: composer require dompdf/dompdf
 use Dompdf\Dompdf;
 
@@ -22,9 +32,10 @@ $html = sprintf(
     $summary['collection_percent']
 );
 
-require_once __DIR__ . '/../../vendor/autoload.php';
 $dompdf = new Dompdf();
 $dompdf->loadHtml($html);
 $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
+header('Content-Type: application/pdf');
+header('Content-Disposition: attachment; filename="monthly-financial-report.pdf"');
 $dompdf->stream('monthly-financial-report.pdf', ['Attachment' => true]);
