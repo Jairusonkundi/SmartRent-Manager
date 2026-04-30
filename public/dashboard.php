@@ -10,6 +10,11 @@ require_once __DIR__ . '/../config/database.php';
 requireAuth();
 
 $selectedMonth = date('Y-m', strtotime((string) ($_GET['month'] ?? date('Y-m'))));
+$isDashboardFiltered = isset($_GET['property_id']) || isset($_GET['view']) || isset($_GET['month']);
+if (!$isDashboardFiltered) {
+    $selectedMonth = date('Y-m');
+    $view = 'monthly';
+}
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
@@ -141,7 +146,7 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
     <a class="button-link" href="/public/upload_csv.php">Upload Monthly Data</a>
 </section>
 <section class="card">
-    <form method="get" class="control-bar">
+    <form method="get" id="dashboardFilters" class="control-bar filter-form">
         <label>Property
             <select name="property_id">
                 <option value="all" <?= $propertyFilter === 'all' ? 'selected' : '' ?>>All Properties</option>
@@ -159,8 +164,19 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
         <label>Reference Month
             <input type="month" name="month" value="<?= h($selectedMonth) ?>">
         </label>
-        <button type="submit">Apply</button>
+        <div class="control-actions">
+            <button type="submit">Search</button>
+            <button type="button" class="button" onclick="resetFilters('dashboardFilters','/public/dashboard.php')">Clear Filters</button>
+        </div>
     </form>
+</section>
+<section class="card">
+    <h3>Dashboard Legend</h3>
+    <div class="status-legend">
+        <span><i class="legend-dot legend-paid"></i>Paid (Green)</span>
+        <span><i class="legend-dot legend-partial"></i>Partial (Yellow)</span>
+        <span><i class="legend-dot legend-unpaid"></i>Unpaid (Red)</span>
+    </div>
 </section>
 <?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?>
 <section class="card">
@@ -194,16 +210,17 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
         <strong><span class="card-value"><?= number_format($monthOverMonthGrowth, 2) ?>%</span></strong>
     </article>
     <article class="card metric unpaid">
-        <span class="metric-label">Arrears (Past + Current Months Only):</span>
-        <strong><span class="card-value"><?= h(formatKsh($arrears)) ?></span></strong>
+        <span class="metric-label">Accounts Receivable (Past + Current Months Only):</span>
+        <strong><span class="card-value negative-financial"><?= h(formatKsh($arrears)) ?></span></strong>
     </article>
     <article class="card metric">
         <span class="metric-label">Collection Efficiency:</span>
         <strong><span class="card-value"><?= number_format($collectionEfficiency, 2) ?>%</span></strong>
     </article>
     <article class="card metric">
-        <span class="metric-label">Occupancy Rate:</span>
-        <strong><span class="card-value"><?= number_format($occupancyRate, 2) ?>% (<?= $occupiedUnits ?>/<?= $totalUnits ?>)</span></strong>
+        <span class="metric-label">Portfolio Snapshot:</span>
+        <strong><span class="card-value"><?= number_format($occupancyRate, 2) ?>% Occupancy (<?= $occupiedUnits ?>/<?= $totalUnits ?>)</span></strong>
+        <canvas id="collectionSparkline" height="40"></canvas>
     </article>
     <article class="card metric">
         <span class="metric-label">Late Payment Alert (&gt; 10th):</span>

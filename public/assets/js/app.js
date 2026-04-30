@@ -26,7 +26,7 @@ const drawDashboard = () => {
       type: 'line',
       data: {
         labels,
-        datasets: [{ label: 'Paid Income (KSH)', data: paid, borderColor: '#198754', tension: 0.3 }]
+        datasets: [{ label: 'Revenue Collected (KSH)', data: paid, borderColor: '#198754', tension: 0.3 }]
       },
       options: {
         scales: {
@@ -43,6 +43,22 @@ const drawDashboard = () => {
             }
           }
         }
+      }
+    });
+  }
+
+  const sparklineCanvas = document.getElementById('collectionSparkline');
+  if (sparklineCanvas) {
+    new Chart(sparklineCanvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{ data: paid, borderColor: '#198754', tension: 0.35, pointRadius: 0, fill: false }]
+      },
+      options: {
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+        elements: { line: { borderWidth: 2 } }
       }
     });
   }
@@ -193,8 +209,50 @@ const addSorting = () => {
   });
 };
 
+const resetFilters = (formId, resetUrl) => {
+  const form = document.getElementById(formId);
+  if (!form) {
+    if (resetUrl) window.location.href = resetUrl;
+    return;
+  }
+
+  form.querySelectorAll('select').forEach(select => {
+    select.selectedIndex = 0;
+  });
+
+  form.querySelectorAll('input[type="text"], input[type="search"], input[type="date"], input[type="month"], input[type="number"]').forEach(input => {
+    input.value = '';
+  });
+
+  form.querySelectorAll('.filter-tag, .active-filter-tag').forEach(tag => tag.remove());
+
+  if (resetUrl) {
+    window.location.href = resetUrl;
+    return;
+  }
+
+  form.submit();
+};
+
+const addLoadingStates = () => {
+  document.querySelectorAll('form.filter-form').forEach(form => {
+    form.addEventListener('submit', () => {
+      let spinner = form.querySelector('.loading-indicator');
+      if (!spinner) {
+        spinner = document.createElement('div');
+        spinner.className = 'loading-indicator';
+        spinner.textContent = 'Calculating...';
+        form.appendChild(spinner);
+      }
+      spinner.style.display = 'inline-flex';
+    });
+  });
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   drawDashboard();
   drawBudget();
   addSorting();
+  addLoadingStates();
+  window.resetFilters = resetFilters;
 });

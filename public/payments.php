@@ -158,7 +158,7 @@ renderHeader('Payments');
 </section>
 <section class="card">
     <h3>Recent Payments</h3>
-    <form method="get" class="control-bar">
+    <form method="get" id="paymentsFilters" class="control-bar filter-form">
         <label>Limit
             <select name="limit">
                 <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
@@ -194,8 +194,10 @@ renderHeader('Payments');
                 <?php endforeach; ?>
             </select>
         </label>
-        <button type="submit">Apply</button>
-        <a class="button" href="/public/payments.php">Clear Filters</a>
+        <div class="control-actions">
+            <button type="submit">Search</button>
+            <button type="button" class="button" onclick="resetFilters('paymentsFilters','/public/payments.php')">Clear Filters</button>
+        </div>
     </form>
     <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
     <?php if ($totalRecords === 0): ?>

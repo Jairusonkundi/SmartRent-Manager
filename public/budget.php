@@ -56,7 +56,7 @@ $totalOutstanding = array_sum(array_map(fn($r) => (float) $r['expected'] - (floa
 renderHeader('Budget');
 ?>
 <section class="card">
-    <form method="get" class="control-bar">
+    <form method="get" id="budgetFilters" class="control-bar filter-form">
         <label>Year
             <input type="number" name="year" min="2000" max="2100" value="<?= $year ?>">
         </label>
@@ -69,7 +69,10 @@ renderHeader('Budget');
         <label>Reference Month
             <input type="month" name="month" value="<?= h($selectedMonth) ?>">
         </label>
-        <button type="submit">Apply</button>
+        <div class="control-actions">
+            <button type="submit">Search</button>
+            <button type="button" class="button" onclick="resetFilters('budgetFilters','/public/budget.php')">Clear Filters</button>
+        </div>
     </form>
 </section>
 <?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?>
@@ -107,7 +110,7 @@ renderHeader('Budget');
     </article>
     <article class="card metric metric-selected <?= $varianceBadgeClass === 'paid' ? 'paid' : 'unpaid' ?>">
         <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Variance:' : 'Month Variance:' ?></span>
-        <strong><span class="card-value"><?= formatKsh($varianceAmount) ?></span></strong>
+        <strong><span class="card-value <?= $varianceAmount < 0 ? 'negative-financial' : '' ?>"><?= formatKsh($varianceAmount) ?></span></strong>
         <span class="badge <?= h($varianceBadgeClass) ?>"><?= number_format($variancePercent, 2) ?>%</span>
     </article>
 </section>
@@ -124,9 +127,28 @@ renderHeader('Budget');
                     <td><?= h((string) $row['month_key']) ?></td>
                     <td><?= formatKsh($expected) ?></td>
                     <td class="text-paid"><?= formatKsh($paid) ?></td>
-                    <td class="text-unpaid"><?= formatKsh($outstanding) ?></td>
+                    <td class="<?= $outstanding > 0 ? 'negative-financial' : 'text-paid' ?>"><?= formatKsh($outstanding) ?></td>
                 </tr>
             <?php endforeach; ?>
+        </tbody>
+    </table>
+</section>
+<section class="card">
+    <h3>Quarterly Side-by-Side: Q1 vs Q2</h3>
+    <table>
+        <thead><tr><th>Quarter</th><th>Expected</th><th>Paid</th><th>Variance</th></tr></thead>
+        <tbody>
+        <?php foreach ($quarterly as $row): ?>
+            <?php if (in_array($row['quarter_label'], ['Q1', 'Q2'], true)): ?>
+                <?php $qVariance = (float) $row['paid'] - (float) $row['expected']; ?>
+                <tr>
+                    <td><?= h($row['quarter_label']) ?></td>
+                    <td><?= formatKsh((float) $row['expected']) ?></td>
+                    <td><?= formatKsh((float) $row['paid']) ?></td>
+                    <td class="<?= $qVariance < 0 ? 'negative-financial' : 'text-paid' ?>"><?= formatKsh($qVariance) ?></td>
+                </tr>
+            <?php endif; ?>
+        <?php endforeach; ?>
         </tbody>
     </table>
 </section>

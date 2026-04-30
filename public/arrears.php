@@ -53,7 +53,7 @@ renderHeader('Arrears');
 ?>
 <section class="card">
     <h3>Balance Owed per Tenant (up to current month)</h3>
-    <form method="get" class="control-bar">
+    <form method="get" id="arrearsFilters" class="control-bar filter-form">
         <label>Limit
             <select name="limit">
                 <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
@@ -75,15 +75,17 @@ renderHeader('Arrears');
                 <?php endforeach; ?>
             </select>
         </label>
-        <button type="submit">Apply</button>
-        <a class="button" href="/public/arrears.php">Clear Filters</a>
+        <div class="control-actions">
+            <button type="submit">Search</button>
+            <button type="button" class="button" onclick="resetFilters('arrearsFilters','/public/arrears.php')">Clear Filters</button>
+        </div>
     </form>
     <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
     <?php if ($totalRecords === 0): ?>
         <div class="alert">Welcome! Please upload your CSV to begin.</div>
     <?php else: ?>
     <table class="sortable">
-        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Monthly Rent</th><th>Amount Paid</th><th>Balance Owed</th></tr></thead>
+        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Monthly Rent</th><th>Revenue Collected</th><th>Accounts Receivable</th></tr></thead>
         <tbody>
             <?php foreach ($arrears as $index => $row): ?>
                 <?php $rowNumber = $offset + $index + 1; ?>
