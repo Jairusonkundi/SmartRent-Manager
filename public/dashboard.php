@@ -18,6 +18,10 @@ $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 $currentMonth = date('Y-m');
+$isFuturePeriod = $selectedMonth > $currentMonth;
+$futureBillingStartDate = $isFuturePeriod
+    ? date('F j, Y', strtotime($selectedMonth . '-01'))
+    : null;
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 $propertyWhere = $propertyFilter !== 'all' ? ' AND pr.id = ?' : '';
 $propertyParams = $propertyFilter !== 'all' ? [(int) $propertyFilter] : [];
@@ -60,6 +64,10 @@ if ($view === 'quarterly') {
     $quarterStartMonth = (($quarter - 1) * 3) + 1;
     $periodStart = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth, 1)->format('Y-m');
     $periodEnd = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth + 2, 1)->format('Y-m');
+}
+$periodEnd = min($periodEnd, $currentMonth);
+if ($periodStart > $currentMonth) {
+    $periodStart = $currentMonth;
 }
 
 $periodTotalsStmt = $pdo->prepare(
@@ -104,6 +112,7 @@ $trendStmt = $pdo->query(
             COALESCE(SUM(amount_expected), 0) AS expected,
             COALESCE(SUM(amount_paid), 0) AS paid
      FROM payments
+     WHERE billing_month <= DATE_FORMAT(CURRENT_DATE, "%Y-%m")
      GROUP BY billing_month
      ORDER BY billing_month DESC
      LIMIT 12'
@@ -153,6 +162,11 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
         <button type="submit">Apply</button>
     </form>
 </section>
+<?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?>
+<section class="card">
+    <p>Data for this period is projected. Official billing starts on <?= h($futureBillingStartDate) ?>.</p>
+</section>
+<?php endif; ?>
 <section class="cards">
     <article class="card metric">
         <span class="metric-label">Current Month Expected (<?= h($currentMonth) ?>):</span>

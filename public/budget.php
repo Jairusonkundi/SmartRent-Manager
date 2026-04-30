@@ -12,6 +12,9 @@ $year = (int) ($_GET['year'] ?? date('Y'));
 $selectedMonth = date('Y-m', strtotime((string) ($_GET['month'] ?? date('Y-m'))));
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
+$currentMonth = date('Y-m');
+$isFuturePeriod = $selectedMonth > $currentMonth;
+$futureBillingStartDate = $isFuturePeriod ? date('F j, Y', strtotime($selectedMonth . '-01')) : null;
 
 $service = new BudgetService();
 $monthly = $service->monthlyBreakdown($year);
@@ -26,6 +29,10 @@ if ($view === 'quarterly') {
     $quarterStartMonth = (($quarter - 1) * 3) + 1;
     $periodStart = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth, 1)->format('Y-m');
     $periodEnd = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth + 2, 1)->format('Y-m');
+}
+$periodEnd = min($periodEnd, $currentMonth);
+if ($periodStart > $currentMonth) {
+    $periodStart = $currentMonth;
 }
 
 $periodTotals = $service->periodTotals($periodStart, $periodEnd);
@@ -59,6 +66,11 @@ renderHeader('Budget');
         <button type="submit">Apply</button>
     </form>
 </section>
+<?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?>
+<section class="card">
+    <p>Data for this period is projected. Official billing starts on <?= h($futureBillingStartDate) ?>.</p>
+</section>
+<?php endif; ?>
 <section class="cards">
     <article class="card metric">
         <span class="metric-label">Total Expected Rent (<?= $year ?>):</span>
