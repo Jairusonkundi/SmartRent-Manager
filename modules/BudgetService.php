@@ -17,6 +17,7 @@ final class BudgetService
                 SUM(amount_expected) - SUM(amount_paid) AS outstanding
              FROM payments
              WHERE LEFT(billing_month, 4) = ?
+               AND billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
              GROUP BY billing_month
              ORDER BY billing_month"
         );
@@ -57,7 +58,8 @@ final class BudgetService
                 COALESCE(SUM(amount_expected), 0) AS expected,
                 COALESCE(SUM(amount_paid), 0) AS paid
              FROM payments
-             WHERE billing_month >= ? AND billing_month <= ?'
+             WHERE billing_month >= ? AND billing_month <= ?
+               AND billing_month <= DATE_FORMAT(CURRENT_DATE, "%Y-%m")'
         );
         $stmt->execute([$periodStartMonth, $periodEndMonth]);
 
