@@ -51,7 +51,8 @@ if (!$isAllLimit && !in_array($limit, $allowedLimits, true)) {
 }
 $offset = $isAllLimit ? 0 : ($page - 1) * $limit;
 $search = trim((string) ($_GET['search'] ?? ''));
-$propertyFilter = (string) ($_GET['property_id'] ?? 'all');
+$propertyFilter = (string) ($_GET['property_id'] ?? ($_SESSION['global_property_filter'] ?? 'all'));
+$_SESSION['global_property_filter'] = $propertyFilter;
 $statusFilter = (string) ($_GET['status'] ?? 'all');
 $allowedStatuses = ['On Time', 'Late'];
 $dateFrom = (string) ($_GET['date_from'] ?? '');
@@ -197,6 +198,9 @@ renderHeader('Payments');
         <a class="button" href="/public/payments.php">Clear Filters</a>
     </form>
     <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
+    <?php if ($totalRecords === 0): ?>
+        <div class="alert">Welcome! Please upload your CSV to begin.</div>
+    <?php else: ?>
     <table class="sortable">
         <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Amount</th><th>Payment Date</th><th>Month</th><th>Payment Status</th></tr></thead>
         <tbody>
@@ -215,6 +219,7 @@ renderHeader('Payments');
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?php endif; ?>
     <?= $paginationHtml ?>
 </section>
 <?php renderFooter(); ?>

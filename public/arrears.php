@@ -22,7 +22,8 @@ if (!$isAllLimit && !in_array($limit, $allowedLimits, true)) {
 }
 
 $search = trim((string) ($_GET['search'] ?? ''));
-$propertyFilter = (string) ($_GET['property_id'] ?? 'all');
+$propertyFilter = (string) ($_GET['property_id'] ?? ($_SESSION['global_property_filter'] ?? 'all'));
+$_SESSION['global_property_filter'] = $propertyFilter;
 $propertyId = $propertyFilter !== 'all' ? (int) $propertyFilter : null;
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
@@ -78,6 +79,9 @@ renderHeader('Arrears');
         <a class="button" href="/public/arrears.php">Clear Filters</a>
     </form>
     <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
+    <?php if ($totalRecords === 0): ?>
+        <div class="alert">Welcome! Please upload your CSV to begin.</div>
+    <?php else: ?>
     <table class="sortable">
         <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Monthly Rent</th><th>Amount Paid</th><th>Balance Owed</th></tr></thead>
         <tbody>
@@ -88,13 +92,14 @@ renderHeader('Arrears');
                     <td><?= h((string) $row['name']) ?></td>
                     <td><?= h((string) $row['property_name']) ?></td>
                     <td><?= h((string) $row['unit_number']) ?></td>
-                    <td>KSH <?= number_format((float) $row['monthly_rent'], 2) ?></td>
-                    <td>KSH <?= number_format((float) $row['amount_paid'], 2) ?></td>
-                    <td class="text-unpaid">KSH <?= number_format((float) $row['balance'], 2) ?></td>
+                    <td><?= h(formatKsh((float) $row['monthly_rent'])) ?></td>
+                    <td><?= h(formatKsh((float) $row['amount_paid'])) ?></td>
+                    <td class="text-unpaid"><?= h(formatKsh((float) $row['balance'])) ?></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?php endif; ?>
     <?= $paginationHtml ?>
 </section>
 <?php renderFooter(); ?>
