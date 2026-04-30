@@ -46,6 +46,31 @@ label { display: grid; gap: 6px; font-size: .9rem; color: var(--muted); }
   align-items: end;
   margin-bottom: 14px;
 }
+.control-actions { display: flex; gap: 8px; align-items: center; }
+.button {
+  display: inline-block;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  color: var(--text);
+  background: #fff;
+  font-weight: 600;
+}
+.button:hover { background: #f8fafc; }
+.loading-indicator {
+  display: none;
+  align-items: center;
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: .9rem;
+}
+.negative-financial { color: var(--unpaid); font-weight: 800; }
+.status-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .9rem; color: var(--muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.legend-paid { background: var(--paid); }
+.legend-partial { background: var(--partial); }
+.legend-unpaid { background: var(--unpaid); }
 
 .pagination ul {
   list-style: none;

@@ -103,7 +103,7 @@ renderHeader('Tenants');
 ?>
 <article class="card">
     <h3>Tenants</h3>
-    <form method="get" class="control-bar">
+    <form method="get" id="tenantsFilters" class="control-bar filter-form">
         <label>Limit
             <select name="limit">
                 <?php foreach ([5, 10, 15, 20] as $limitOption): ?>
@@ -139,8 +139,10 @@ renderHeader('Tenants');
                 <?php endforeach; ?>
             </select>
         </label>
-        <button type="submit">Apply</button>
-        <a class="button" href="/public/tenants.php">Clear Filters</a>
+        <div class="control-actions">
+            <button type="submit">Search</button>
+            <button type="button" class="button" onclick="resetFilters('tenantsFilters','/public/tenants.php')">Clear Filters</button>
+        </div>
     </form>
     <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
     <table class="sortable">
