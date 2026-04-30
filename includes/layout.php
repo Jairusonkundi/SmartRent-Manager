@@ -7,13 +7,14 @@ require_once __DIR__ . '/functions.php';
 function renderHeader(string $title): void
 {
     $flash = function_exists('getFlash') ? getFlash() : null;
+    $currentPage = basename(parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
     ?>
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; form-action 'self'">
     <title><?= h($title) ?> | SmartRent Manager</title>
     <link rel="stylesheet" href="/public/assets/css/styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -25,12 +26,12 @@ function renderHeader(string $title): void
     <aside class="sidebar">
         <h1>SmartRent</h1>
         <nav>
-            <a href="/public/dashboard.php">Dashboard</a>
-            <a href="/public/tenants.php">Tenants</a>
-            <a href="/public/payments.php">Payments</a>
-            <a href="/public/budget.php">Budget</a>
-            <a href="/public/arrears.php">Arrears</a>
-            <a href="/public/reports.php">Reports</a>
+            <a class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>" href="/public/dashboard.php">Dashboard</a>
+            <a class="<?= $currentPage === 'tenants.php' ? 'active' : '' ?>" href="/public/tenants.php">Tenants</a>
+            <a class="<?= $currentPage === 'payments.php' ? 'active' : '' ?>" href="/public/payments.php">Payments</a>
+            <a class="<?= $currentPage === 'budget.php' ? 'active' : '' ?>" href="/public/budget.php">Budget</a>
+            <a class="<?= $currentPage === 'arrears.php' ? 'active' : '' ?>" href="/public/arrears.php">Arrears</a>
+            <a class="<?= $currentPage === 'reports.php' ? 'active' : '' ?>" href="/public/reports.php">Reports</a>
             <a href="/public/logout.php">Logout</a>
         </nav>
     </aside>

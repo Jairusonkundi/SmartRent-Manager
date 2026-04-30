@@ -10,6 +10,7 @@ require_once __DIR__ . '/../config/database.php';
 requireAuth();
 
 $selectedMonth = date('Y-m', strtotime((string) ($_GET['month'] ?? date('Y-m'))));
+$propertyFilter = (string) ($_GET['property_id'] ?? 'all');
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
 
@@ -17,13 +18,22 @@ $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 $currentMonth = date('Y-m');
-$currentMonthExpectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount_expected), 0) FROM payments WHERE billing_month = ?');
-$currentMonthExpectedStmt->execute([$currentMonth]);
+$properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
+$propertyWhere = $propertyFilter !== 'all' ? ' AND pr.id = ?' : '';
+$propertyParams = $propertyFilter !== 'all' ? [(int) $propertyFilter] : [];
+
+$currentMonthExpectedStmt = $pdo->prepare("SELECT COALESCE(SUM(p.amount_expected), 0) FROM payments p LEFT JOIN leases l ON l.tenant_id=p.tenant_id AND l.status='active' LEFT JOIN units u ON u.id=l.unit_id LEFT JOIN properties pr ON pr.id=u.property_id WHERE p.billing_month = ?{$propertyWhere}");
+$currentMonthExpectedStmt->execute(array_merge([$currentMonth], $propertyParams));
 $currentMonthExpected = (float) ($currentMonthExpectedStmt->fetchColumn() ?: 0.0);
 
-$currentMonthCollectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount_paid), 0) FROM payments WHERE billing_month = ?');
-$currentMonthCollectedStmt->execute([$currentMonth]);
+$currentMonthCollectedStmt = $pdo->prepare("SELECT COALESCE(SUM(p.amount_paid), 0) FROM payments p LEFT JOIN leases l ON l.tenant_id=p.tenant_id AND l.status='active' LEFT JOIN units u ON u.id=l.unit_id LEFT JOIN properties pr ON pr.id=u.property_id WHERE p.billing_month = ?{$propertyWhere}");
+$currentMonthCollectedStmt->execute(array_merge([$currentMonth], $propertyParams));
 $currentMonthCollected = (float) ($currentMonthCollectedStmt->fetchColumn() ?: 0.0);
+$previousMonth = date('Y-m', strtotime($currentMonth . '-01 -1 month'));
+$previousMonthCollectedStmt = $pdo->prepare("SELECT COALESCE(SUM(p.amount_paid), 0) FROM payments p LEFT JOIN leases l ON l.tenant_id=p.tenant_id AND l.status='active' LEFT JOIN units u ON u.id=l.unit_id LEFT JOIN properties pr ON pr.id=u.property_id WHERE p.billing_month = ?{$propertyWhere}");
+$previousMonthCollectedStmt->execute(array_merge([$previousMonth], $propertyParams));
+$previousMonthCollected = (float) ($previousMonthCollectedStmt->fetchColumn() ?: 0.0);
+$monthOverMonthGrowth = $previousMonthCollected > 0 ? (($currentMonthCollected - $previousMonthCollected) / $previousMonthCollected) * 100 : ($currentMonthCollected > 0 ? 100.0 : 0.0);
 
 $currentQuarter = (int) ceil(((int) date('n')) / 3);
 $currentQuarterStartMonth = sprintf('%d-%02d', (int) date('Y'), (($currentQuarter - 1) * 3) + 1);
@@ -96,10 +106,10 @@ $trendStmt = $pdo->query(
      FROM payments
      GROUP BY billing_month
      ORDER BY billing_month DESC
-     LIMIT 6'
+     LIMIT 12'
 );
 $trend = array_reverse($trendStmt->fetchAll() ?: []);
-$paidLast6 = array_map(static fn(array $row): float => (float) ($row['paid'] ?? 0), $trend);
+$paidLast12 = array_map(static fn(array $row): float => (float) ($row['paid'] ?? 0), $trend);
 
 $distributionStmt = $pdo->prepare(
     "SELECT collection_status AS status, COUNT(*) AS total
@@ -113,12 +123,24 @@ $distribution = $distributionStmt->fetchAll() ?: [];
 $collectionEfficiency = $totalExpected > 0 ? round(($totalPaid / $totalExpected) * 100, 2) : 0.0;
 
 renderHeader('Dashboard');
+$hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 ?>
+<?php if (!$hasPayments): ?>
+<section class="card"><h3>Welcome! Please upload your CSV to begin</h3><p>Import your wide-format rent collection data to unlock dashboard metrics, arrears, and reports.</p><a class="button-link" href="/public/upload_csv.php">Upload CSV</a></section>
+<?php renderFooter(); return; endif; ?>
 <section class="card upload-cta">
     <a class="button-link" href="/public/upload_csv.php">Upload Monthly Data</a>
 </section>
 <section class="card">
     <form method="get" class="control-bar">
+        <label>Property
+            <select name="property_id">
+                <option value="all" <?= $propertyFilter === 'all' ? 'selected' : '' ?>>All Properties</option>
+                <?php foreach ($properties as $property): ?>
+                    <option value="<?= (int) $property['id'] ?>" <?= $propertyFilter === (string) $property['id'] ? 'selected' : '' ?>><?= h($property['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
         <label>View
             <select name="view">
                 <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
@@ -134,32 +156,32 @@ renderHeader('Dashboard');
 <section class="cards">
     <article class="card metric">
         <span class="metric-label">Current Month Expected (<?= h($currentMonth) ?>):</span>
-        <strong><span class="card-value">KSH <?= number_format($currentMonthExpected, 2) ?></span></strong>
+        <strong><span class="card-value"><?= h(formatKsh($currentMonthExpected)) ?></span></strong>
     </article>
     <article class="card metric paid">
         <span class="metric-label">Current Month Collected (<?= h($currentMonth) ?>):</span>
-        <strong><span class="card-value">KSH <?= number_format($currentMonthCollected, 2) ?></span></strong>
+        <strong><span class="card-value"><?= h(formatKsh($currentMonthCollected)) ?></span></strong>
     </article>
     <article class="card metric">
         <span class="metric-label">Selected Period Expected Revenue:</span>
-        <strong><span class="card-value">KSH <?= number_format($totalExpected, 2) ?></span></strong>
+        <strong><span class="card-value"><?= h(formatKsh($totalExpected)) ?></span></strong>
     </article>
     <article class="card metric paid">
         <span class="metric-label">Selected Period Actual Revenue:</span>
-        <strong><span class="card-value">KSH <?= number_format($totalPaid, 2) ?></span></strong>
+        <strong><span class="card-value"><?= h(formatKsh($totalPaid)) ?></span></strong>
     </article>
     <article class="card metric <?= $budgetBadgeClass === 'paid' ? 'paid' : 'unpaid' ?>">
         <span class="metric-label">Budget Variance:</span>
-        <strong><span class="card-value">KSH <?= number_format($budgetVarianceAmount, 2) ?></span></strong>
+        <strong><span class="card-value"><?= h(formatKsh($budgetVarianceAmount)) ?></span></strong>
         <span class="badge <?= h($budgetBadgeClass) ?>"><?= number_format($budgetVariancePercent, 2) ?>%</span>
     </article>
     <article class="card metric">
-        <span class="metric-label">Quarterly Growth (Current vs Previous 3 months):</span>
-        <strong><span class="card-value"><?= number_format($quarterlyGrowth, 2) ?>%</span></strong>
+        <span class="metric-label">Month-over-Month Collection Growth:</span>
+        <strong><span class="card-value"><?= number_format($monthOverMonthGrowth, 2) ?>%</span></strong>
     </article>
     <article class="card metric unpaid">
         <span class="metric-label">Arrears (Past + Current Months Only):</span>
-        <strong><span class="card-value">KSH <?= number_format($arrears, 2) ?></span></strong>
+        <strong><span class="card-value"><?= h(formatKsh($arrears)) ?></span></strong>
     </article>
     <article class="card metric">
         <span class="metric-label">Collection Efficiency:</span>
@@ -175,15 +197,14 @@ renderHeader('Dashboard');
     </article>
 </section>
 <section class="charts-grid">
-    <article class="card"><h3>Revenue Trend (Last 6 Months)</h3><canvas id="incomeTrend"></canvas></article>
+    <article class="card"><h3>Revenue Trend (12 Months)</h3><canvas id="incomeTrend"></canvas></article>
     <article class="card"><h3>Collection vs. Target</h3><canvas id="expectedVsPaid"></canvas></article>
     <article class="card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
 </section>
 <script>
 window.dashboardData = {
     trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>,
-    paidLast6: <?= json_encode($paidLast6, JSON_THROW_ON_ERROR) ?>,
-    distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?>
+        distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?>
 };
 </script>
 <?php renderFooter(); ?>

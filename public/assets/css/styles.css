@@ -15,6 +15,7 @@ body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); 
 .sidebar { background: #111827; color: #fff; padding: 20px; }
 .sidebar nav a { display: block; color: #d1d5db; padding: 10px 8px; text-decoration: none; border-radius: 8px; }
 .sidebar nav a:hover { background: #1f2937; color: #fff; }
+.sidebar nav a.active { background: #1f2937; color: #fff; font-weight: 700; }
 .content { padding: 20px; }
 .topbar { margin-bottom: 16px; }
 .cards, .charts-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); margin-bottom: 16px; }
