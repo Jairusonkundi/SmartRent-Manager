@@ -100,12 +100,22 @@ const drawBudget = () => {
         outstanding: Number(x.outstanding || 0)
       }))
     : [];
+  const currentQuarter = Number(window.budgetData.currentQuarter || 4);
+  const selectedYear = Number(window.budgetData.selectedYear || 0);
+  const currentYear = Number(window.budgetData.currentYear || 0);
   const q = Array.isArray(window.budgetData.quarterly)
-    ? window.budgetData.quarterly.map(x => ({
-        quarter_label: String(x.quarter_label || ''),
-        expected: Number(x.expected || 0),
-        paid: Number(x.paid || 0)
-      }))
+    ? window.budgetData.quarterly
+        .map(x => ({
+          quarter_label: String(x.quarter_label || ''),
+          expected: Number(x.expected || 0),
+          paid: Number(x.paid || 0)
+        }))
+        .filter(row => {
+          const quarterNumber = Number(String(row.quarter_label || '').replace('Q', ''));
+          if (!Number.isFinite(quarterNumber)) return false;
+          if (selectedYear !== currentYear) return true;
+          return quarterNumber <= currentQuarter;
+        })
     : [];
   const formatKsh = value => `Ksh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
