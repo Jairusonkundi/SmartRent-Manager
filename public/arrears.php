@@ -31,6 +31,24 @@ $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetc
 $paymentService = new PaymentService();
 $allArrears = $paymentService->arrearsSummaryByTenant($search, $propertyId);
 $totalRecords = count($allArrears);
+$portfolioTotal = 0.0;
+$oldestDebtMonth = null;
+foreach ($allArrears as $tenantArrear) {
+    $portfolioTotal += (float) ($tenantArrear['total_outstanding'] ?? 0);
+    foreach (($tenantArrear['details'] ?? []) as $detail) {
+        $balance = (float) ($detail['balance'] ?? 0);
+        if ($balance <= 0) {
+            continue;
+        }
+        $monthDate = DateTimeImmutable::createFromFormat('Y-m', (string) $detail['billing_month']);
+        if (!$monthDate) {
+            $monthDate = new DateTimeImmutable((string) $detail['billing_month'] . '-01');
+        }
+        if ($oldestDebtMonth === null || $monthDate < $oldestDebtMonth) {
+            $oldestDebtMonth = $monthDate;
+        }
+    }
+}
 
 if ($isAllLimit) {
     $arrears = $allArrears;
@@ -55,6 +73,20 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
 ?>
 <section class="card">
     <h3>Balance Owed per Tenant by Month (year-to-date)</h3>
+    <div class="cards arrears-summary-cards">
+        <article class="card metric unpaid">
+            <span class="metric-label">Total Arrears (Portfolio)</span>
+            <strong><?= 'Ksh ' . number_format($portfolioTotal, 2) ?></strong>
+        </article>
+        <article class="card metric">
+            <span class="metric-label">Affected Tenants</span>
+            <strong><?= number_format($totalRecords) ?></strong>
+        </article>
+        <article class="card metric">
+            <span class="metric-label">Oldest Debt</span>
+            <strong><?= $oldestDebtMonth ? h($oldestDebtMonth->format('F Y')) : 'N/A' ?></strong>
+        </article>
+    </div>
     <form method="get" id="arrearsFilters" class="control-bar filter-form">
         <label>Limit
             <select name="limit">
@@ -87,29 +119,45 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
         <div class="alert">Welcome! Please upload your CSV to begin.</div>
     <?php else: ?>
     <div class="table-responsive">
-    <table class="sortable">
-        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Month Owed</th><th>Monthly Rent</th><th>Revenue Collected</th><th>Accounts Receivable</th><th>Total Outstanding</th></tr></thead>
+    <table class="sortable arrears-accordion-table">
+        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Total Amount Owed</th><th>Action</th></tr></thead>
         <tbody>
             <?php foreach ($arrears as $index => $row): ?>
                 <?php $rowNumber = $offset + $index + 1; ?>
-                <?php
-                    $monthDate = DateTimeImmutable::createFromFormat('Y-m', (string) $row['billing_month']) ?: new DateTimeImmutable((string) $row['billing_month'] . '-01');
-                    $monthLabel = $monthDate->format('F Y');
-                    $monthsOverdue = ((int) $currentMonthDate->format('Y') - (int) $monthDate->format('Y')) * 12
-                        + ((int) $currentMonthDate->format('n') - (int) $monthDate->format('n'));
-                    $agingClass = $monthsOverdue <= 0 ? 'month-current' : ($monthsOverdue === 1 ? 'month-warning' : 'month-risk');
-                    $agingLabel = $monthsOverdue <= 0 ? 'Standard Due' : ($monthsOverdue === 1 ? 'Follow Up' : 'High Risk');
-                ?>
-                <tr>
+                <?php $detailId = 'tenant-' . (int) $row['tenant_id']; ?>
+                <tr class="arrears-parent-row">
                     <td><?= $rowNumber ?></td>
-                    <td><?= h((string) $row['name']) ?></td>
+                    <td><button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>"><?= h((string) $row['name']) ?></button></td>
                     <td><?= h((string) $row['property_name']) ?></td>
                     <td><?= h((string) $row['unit_number']) ?></td>
-                    <td><span class="badge <?= h($agingClass) ?>" title="<?= h($agingLabel) ?>"><?= h($monthLabel) ?></span></td>
-                    <td><?= 'Ksh ' . number_format((float) $row['monthly_rent'], 2) ?></td>
-                    <td><?= 'Ksh ' . number_format((float) $row['amount_paid'], 2) ?></td>
-                    <td class="text-unpaid"><?= 'Ksh ' . number_format((float) $row['balance'], 2) ?></td>
-                    <td title="Year-to-date outstanding for this tenant"><?= 'Ksh ' . number_format((float) $row['total_outstanding'], 2) ?></td>
+                    <td class="text-unpaid"><?= 'Ksh ' . number_format((float) $row['total_outstanding'], 2) ?></td>
+                    <td><button type="button" class="button arrears-toggle-button" data-target="<?= h($detailId) ?>">View Details ⌄</button></td>
+                </tr>
+                <tr id="<?= h($detailId) ?>" class="arrears-detail-row" hidden>
+                    <td colspan="6">
+                        <table class="arrears-detail-table">
+                            <thead>
+                                <tr><th>Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach (($row['details'] ?? []) as $detail): ?>
+                                <?php
+                                    $monthDate = DateTimeImmutable::createFromFormat('Y-m', (string) $detail['billing_month']) ?: new DateTimeImmutable((string) $detail['billing_month'] . '-01');
+                                    $monthLabel = $monthDate->format('F Y');
+                                    $monthsOverdue = ((int) $currentMonthDate->format('Y') - (int) $monthDate->format('Y')) * 12 + ((int) $currentMonthDate->format('n') - (int) $monthDate->format('n'));
+                                    $statusLabel = $monthsOverdue >= 2 ? '🔴 Critical' : '🟠 Overdue';
+                                ?>
+                                <tr>
+                                    <td><?= h($monthLabel) ?></td>
+                                    <td><?= 'Ksh ' . number_format((float) $detail['amount_expected'], 2) ?></td>
+                                    <td><?= 'Ksh ' . number_format((float) $detail['amount_paid'], 2) ?></td>
+                                    <td class="text-unpaid"><?= 'Ksh ' . number_format((float) $detail['balance'], 2) ?></td>
+                                    <td><?= h($statusLabel) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
@@ -129,6 +177,25 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
             timeoutId = setTimeout(function () {
                 form.submit();
             }, 250);
+        });
+    }());
+    (function () {
+        const buttons = document.querySelectorAll('.arrears-toggle-button, .tenant-toggle');
+        buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                const rowId = button.dataset.target || button.getAttribute('aria-controls');
+                if (!rowId) return;
+                const detailRow = document.getElementById(rowId);
+                if (!detailRow) return;
+                const isHidden = detailRow.hasAttribute('hidden');
+                detailRow.toggleAttribute('hidden');
+                document.querySelectorAll('[data-target="' + rowId + '"], [aria-controls="' + rowId + '"]').forEach(function (ctrl) {
+                    ctrl.setAttribute('aria-expanded', String(isHidden));
+                    if (ctrl.classList.contains('arrears-toggle-button')) {
+                        ctrl.textContent = isHidden ? 'Hide Details ⌃' : 'View Details ⌄';
+                    }
+                });
+            });
         });
     }());
 </script>
