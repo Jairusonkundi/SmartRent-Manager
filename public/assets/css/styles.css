@@ -286,3 +286,35 @@ th { cursor: pointer; background: #f9fafb; }
 .selected-period-title h3 {
   margin: 0;
 }
+
+.arrears-summary-cards {
+  margin: 12px 0 18px;
+}
+
+.arrears-parent-row td {
+  font-weight: 600;
+}
+
+.arrears-detail-row > td {
+  background: #f8fafc;
+  padding: 0;
+}
+
+.arrears-detail-table th,
+.arrears-detail-table td {
+  padding: 8px 10px;
+}
+
+.tenant-toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #0f172a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.arrears-toggle-button {
+  padding: 6px 10px;
+  font-size: .86rem;
+}

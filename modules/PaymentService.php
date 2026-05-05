@@ -121,32 +121,51 @@ final class PaymentService
                 t.name,
                 COALESCE(pr.name, 'Unassigned Property') AS property_name,
                 COALESCE(u.unit_number, '-') AS unit_number,
-                p.billing_month,
-                p.amount_expected AS monthly_rent,
-                p.amount_paid,
-                (p.amount_expected - p.amount_paid) AS balance,
-                totals.total_outstanding
+                SUM(p.amount_expected - p.amount_paid) AS total_outstanding
             FROM payments p
             JOIN tenants t ON t.id = p.tenant_id
             LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
             LEFT JOIN units u ON u.id = l.unit_id
             LEFT JOIN properties pr ON pr.id = u.property_id
-            JOIN (
-                SELECT
-                    tenant_id,
-                    SUM(amount_expected - amount_paid) AS total_outstanding
-                FROM payments
-                WHERE billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')
-                    AND billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
-                    AND amount_paid < amount_expected
-                GROUP BY tenant_id
-            ) totals ON totals.tenant_id = p.tenant_id
             WHERE {$whereSql}
-            ORDER BY p.billing_month ASC, t.name ASC"
+            GROUP BY p.tenant_id, t.name, pr.name, u.unit_number
+            ORDER BY t.name ASC"
         );
 
         $stmt->execute($params);
+        $tenantRows = $stmt->fetchAll() ?: [];
 
-        return $stmt->fetchAll() ?: [];
+        if ($tenantRows === []) {
+            return [];
+        }
+
+        $detailsStmt = $pdo->prepare(
+            "SELECT
+                p.tenant_id,
+                p.billing_month,
+                p.amount_expected,
+                p.amount_paid,
+                (p.amount_expected - p.amount_paid) AS balance
+            FROM payments p
+            JOIN tenants t ON t.id = p.tenant_id
+            LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
+            LEFT JOIN units u ON u.id = l.unit_id
+            LEFT JOIN properties pr ON pr.id = u.property_id
+            WHERE {$whereSql}
+            ORDER BY p.billing_month ASC"
+        );
+        $detailsStmt->execute($params);
+        $detailRows = $detailsStmt->fetchAll() ?: [];
+        $detailsByTenant = [];
+        foreach ($detailRows as $detailRow) {
+            $detailsByTenant[(int) $detailRow['tenant_id']][] = $detailRow;
+        }
+
+        foreach ($tenantRows as &$tenantRow) {
+            $tenantRow['details'] = $detailsByTenant[(int) $tenantRow['tenant_id']] ?? [];
+        }
+        unset($tenantRow);
+
+        return $tenantRows;
     }
 }
