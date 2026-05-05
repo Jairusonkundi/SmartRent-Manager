@@ -111,8 +111,12 @@ th { cursor: pointer; background: #f9fafb; }
 .badge.paid { background: #dcfce7; color: #166534; }
 .badge.unpaid { background: #fee2e2; color: #991b1b; }
 .badge.partial { background: #fef3c7; color: #92400e; }
+.badge.month-current { background: #dbeafe; color: #1d4ed8; }
+.badge.month-warning { background: #ffedd5; color: #c2410c; }
+.badge.month-risk { background: #fee2e2; color: #b91c1c; }
 .text-paid { color: var(--paid); font-weight: 600; }
 .text-unpaid { color: var(--unpaid); font-weight: 600; }
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 .login-page {
   min-height: 100vh;

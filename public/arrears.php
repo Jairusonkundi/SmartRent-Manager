@@ -50,9 +50,11 @@ $paginationHtml = renderPaginationLinks($totalRecords, $page, $paginationLimit, 
 ]);
 
 renderHeader('Arrears');
+
+$currentMonthDate = new DateTimeImmutable('first day of this month');
 ?>
 <section class="card">
-    <h3>Balance Owed per Tenant (up to current month)</h3>
+    <h3>Balance Owed per Tenant by Month (year-to-date)</h3>
     <form method="get" id="arrearsFilters" class="control-bar filter-form">
         <label>Limit
             <select name="limit">
@@ -63,7 +65,7 @@ renderHeader('Arrears');
             </select>
         </label>
         <label>Search
-            <input type="text" name="search" value="<?= h($search) ?>" placeholder="Tenant or unit number">
+            <input type="text" id="arrearsSearchInput" name="search" value="<?= h($search) ?>" placeholder="Tenant or unit number">
         </label>
         <label>Property
             <select name="property_id">
@@ -84,24 +86,50 @@ renderHeader('Arrears');
     <?php if ($totalRecords === 0): ?>
         <div class="alert">Welcome! Please upload your CSV to begin.</div>
     <?php else: ?>
+    <div class="table-responsive">
     <table class="sortable">
-        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Monthly Rent</th><th>Revenue Collected</th><th>Accounts Receivable</th></tr></thead>
+        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Month Owed</th><th>Monthly Rent</th><th>Revenue Collected</th><th>Accounts Receivable</th><th>Total Outstanding</th></tr></thead>
         <tbody>
             <?php foreach ($arrears as $index => $row): ?>
                 <?php $rowNumber = $offset + $index + 1; ?>
+                <?php
+                    $monthDate = DateTimeImmutable::createFromFormat('Y-m', (string) $row['billing_month']) ?: new DateTimeImmutable((string) $row['billing_month'] . '-01');
+                    $monthLabel = $monthDate->format('F Y');
+                    $monthsOverdue = ((int) $currentMonthDate->format('Y') - (int) $monthDate->format('Y')) * 12
+                        + ((int) $currentMonthDate->format('n') - (int) $monthDate->format('n'));
+                    $agingClass = $monthsOverdue <= 0 ? 'month-current' : ($monthsOverdue === 1 ? 'month-warning' : 'month-risk');
+                    $agingLabel = $monthsOverdue <= 0 ? 'Standard Due' : ($monthsOverdue === 1 ? 'Follow Up' : 'High Risk');
+                ?>
                 <tr>
                     <td><?= $rowNumber ?></td>
                     <td><?= h((string) $row['name']) ?></td>
                     <td><?= h((string) $row['property_name']) ?></td>
                     <td><?= h((string) $row['unit_number']) ?></td>
-                    <td><?= h(formatKsh((float) $row['monthly_rent'])) ?></td>
-                    <td><?= h(formatKsh((float) $row['amount_paid'])) ?></td>
-                    <td class="text-unpaid"><?= h(formatKsh((float) $row['balance'])) ?></td>
+                    <td><span class="badge <?= h($agingClass) ?>" title="<?= h($agingLabel) ?>"><?= h($monthLabel) ?></span></td>
+                    <td><?= 'Ksh ' . number_format((float) $row['monthly_rent'], 2) ?></td>
+                    <td><?= 'Ksh ' . number_format((float) $row['amount_paid'], 2) ?></td>
+                    <td class="text-unpaid"><?= 'Ksh ' . number_format((float) $row['balance'], 2) ?></td>
+                    <td title="Year-to-date outstanding for this tenant"><?= 'Ksh ' . number_format((float) $row['total_outstanding'], 2) ?></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
     <?php endif; ?>
     <?= $paginationHtml ?>
 </section>
+<script>
+    (function () {
+        const searchInput = document.getElementById('arrearsSearchInput');
+        const form = document.getElementById('arrearsFilters');
+        if (!searchInput || !form) return;
+        let timeoutId = null;
+        searchInput.addEventListener('input', function () {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(function () {
+                form.submit();
+            }, 250);
+        });
+    }());
+</script>
 <?php renderFooter(); ?>

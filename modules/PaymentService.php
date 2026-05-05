@@ -95,6 +95,7 @@ final class PaymentService
         $pdo = Database::connection();
 
         $where = [
+            "p.billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')",
             "p.billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')",
             'p.amount_paid < p.amount_expected',
         ];
@@ -120,18 +121,28 @@ final class PaymentService
                 t.name,
                 COALESCE(pr.name, 'Unassigned Property') AS property_name,
                 COALESCE(u.unit_number, '-') AS unit_number,
-                MAX(p.amount_expected) AS monthly_rent,
-                SUM(p.amount_paid) AS amount_paid,
-                SUM(p.amount_expected - p.amount_paid) AS balance
+                p.billing_month,
+                p.amount_expected AS monthly_rent,
+                p.amount_paid,
+                (p.amount_expected - p.amount_paid) AS balance,
+                totals.total_outstanding
             FROM payments p
             JOIN tenants t ON t.id = p.tenant_id
             LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
             LEFT JOIN units u ON u.id = l.unit_id
             LEFT JOIN properties pr ON pr.id = u.property_id
+            JOIN (
+                SELECT
+                    tenant_id,
+                    SUM(amount_expected - amount_paid) AS total_outstanding
+                FROM payments
+                WHERE billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')
+                    AND billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
+                    AND amount_paid < amount_expected
+                GROUP BY tenant_id
+            ) totals ON totals.tenant_id = p.tenant_id
             WHERE {$whereSql}
-            GROUP BY p.tenant_id, t.name, pr.name, u.unit_number
-            HAVING COALESCE(SUM(p.amount_expected - p.amount_paid), 0) > 0
-            ORDER BY balance DESC, t.name ASC"
+            ORDER BY p.billing_month ASC, t.name ASC"
         );
 
         $stmt->execute($params);
