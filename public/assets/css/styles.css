@@ -11,12 +11,12 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--text); }
-.app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.app-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
 .sidebar { background: #111827; color: #fff; padding: 20px; }
 .sidebar nav a { display: block; color: #d1d5db; padding: 10px 8px; text-decoration: none; border-radius: 8px; }
 .sidebar nav a:hover { background: #1f2937; color: #fff; }
 .sidebar nav a.active { background: #1f2937; color: #fff; font-weight: 700; }
-.content { padding: 20px; }
+.content { max-width: calc(100vw - 220px); min-width: 0; padding: 20px; width: 100%; }
 .topbar { margin-bottom: 16px; }
 .cards, .charts-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); margin-bottom: 16px; }
 .card { background: var(--card); border-radius: 12px; padding: 18px; box-shadow: 0 3px 12px rgba(15,23,42,.08); }
@@ -373,9 +373,88 @@ th { cursor: pointer; background: #f9fafb; }
   cursor: default;
 }
 
+.tenant-ledger-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tenant-ledger-table {
+  table-layout: auto;
+}
+
+.tenant-ledger-table .ledger-index-col { width: 4%; }
+.tenant-ledger-table .ledger-tenant-col { width: 22%; }
+.tenant-ledger-table .ledger-location-col { width: 22%; }
+.tenant-ledger-table .ledger-month-col { width: 11%; }
+.tenant-ledger-table .ledger-money-col { width: 11%; }
+.tenant-ledger-table .ledger-status-col { width: 8%; }
+.tenant-ledger-table .ledger-action-col { width: 12%; }
+
 .tenant-ledger-table th,
 .tenant-ledger-table td {
+  padding: 8px 9px;
+  vertical-align: middle;
+}
+
+.tenant-ledger-table > thead th {
+  font-size: .88rem;
   white-space: nowrap;
+}
+
+.tenant-ledger-table .ledger-index-cell,
+.tenant-ledger-table .ledger-month-cell,
+.tenant-ledger-table .ledger-money-cell,
+.tenant-ledger-table .badge,
+.tenant-ledger-table .muted-text {
+  white-space: nowrap;
+}
+
+.tenant-ledger-table .tenant-name-cell,
+.tenant-ledger-table .location-cell {
+  min-width: 0;
+  white-space: normal;
+}
+
+.tenant-ledger-table .location-cell {
+  line-height: 1.3;
+}
+
+.tenant-ledger-table .tenant-toggle {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.tenant-ledger-table .tenant-phone {
+  color: var(--muted);
+  display: block;
+  font-size: .78rem;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+
+.tenant-ledger-table .ledger-amount,
+.tenant-ledger-detail-table .ledger-amount {
+  font-size: .9rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+
+.tenant-ledger-table .arrears-toggle-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .content {
+    padding: 14px;
+  }
+
+  .tenant-ledger-table {
+    min-width: 760px;
+  }
 }
 
 .tenant-ledger-detail-table {
