@@ -291,15 +291,24 @@ th { cursor: pointer; background: #f9fafb; }
   margin: 12px 0 18px;
 }
 
-.arrears-accordion-table th {
-  color: #2c3e50;
-  font-size: 1.1rem;
-  font-weight: 700;
+.arrears-accordion-table > thead th {
+  color: #212529;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: left;
 }
 
-.arrears-parent-row td {
+.arrears-accordion-table tbody .arrears-parent-row > td {
   color: var(--text);
-  font-size: 1rem;
+  font-size: 15px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.arrears-accordion-table tbody .arrears-parent-row > td.tenant-name-cell,
+.arrears-accordion-table tbody .arrears-parent-row > td.property-cell,
+.arrears-accordion-table tbody .arrears-parent-row > td.unit-cell {
+  font-size: 15px;
   font-weight: 400;
 }
 
@@ -319,8 +328,9 @@ th { cursor: pointer; background: #f9fafb; }
   padding: 0;
   color: #0f172a;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 15px;
   font-weight: 400;
+  line-height: inherit;
 }
 
 .arrears-toggle-button {
@@ -330,10 +340,16 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 
-.arrears-total,
+.arrears-accordion-table tbody .arrears-parent-row > td.arrears-total {
+  color: #dc3545;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
 .arrears-detail-table .text-unpaid {
-  color: #d9534f;
-  font-size: .95rem;
+  color: #dc3545;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -342,6 +358,6 @@ th { cursor: pointer; background: #f9fafb; }
   background: #fff7f7;
 }
 
-.arrears-total-highest {
-  color: #d9534f;
+.arrears-accordion-table tbody .arrears-parent-row > td.arrears-total-highest {
+  color: #dc3545;
 }
