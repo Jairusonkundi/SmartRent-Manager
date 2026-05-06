@@ -121,12 +121,7 @@ final class PaymentService
                 t.name,
                 COALESCE(pr.name, 'Unassigned Property') AS property_name,
                 COALESCE(u.unit_number, '-') AS unit_number,
-                SUM(p.amount_expected - p.amount_paid) AS total_arrears,
-                GROUP_CONCAT(
-                    DISTINCT DATE_FORMAT(STR_TO_DATE(CONCAT(p.billing_month, '-01'), '%Y-%m-%d'), '%b %Y')
-                    ORDER BY p.billing_month ASC
-                    SEPARATOR ', '
-                ) AS months_owed
+                SUM(p.amount_expected - p.amount_paid) AS total_arrears
             FROM payments p
             JOIN tenants t ON t.id = p.tenant_id
             LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'

@@ -121,24 +121,21 @@ $highestArrears = (float) ($allArrears[0]['total_arrears'] ?? 0);
     <?php else: ?>
     <div class="table-responsive">
     <table class="arrears-accordion-table">
-        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Months Owed</th><th>Total Arrears</th><th>Action</th></tr></thead>
+        <thead><tr><th>Tenant Name</th><th>Property Name</th><th>Unit Number</th><th>Total Arrears</th><th>Action</th></tr></thead>
         <tbody>
-            <?php foreach ($arrears as $index => $row): ?>
-                <?php $rowNumber = $offset + $index + 1; ?>
+            <?php foreach ($arrears as $row): ?>
                 <?php $detailId = 'tenant-' . (int) $row['tenant_id']; ?>
                 <?php $totalArrears = (float) ($row['total_arrears'] ?? 0); ?>
                 <?php $isHighestDebt = $highestArrears > 0 && $totalArrears === $highestArrears; ?>
                 <tr class="arrears-parent-row<?= $isHighestDebt ? ' highest-arrears-row' : '' ?>">
-                    <td><?= $rowNumber ?></td>
                     <td><button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>"><?= h((string) $row['name']) ?></button></td>
                     <td><?= h((string) $row['property_name']) ?></td>
                     <td><?= h((string) $row['unit_number']) ?></td>
-                    <td class="months-owed"><?= h((string) ($row['months_owed'] ?? '')) ?></td>
                     <td class="arrears-total<?= $isHighestDebt ? ' arrears-total-highest' : '' ?>"><?= 'Ksh ' . number_format($totalArrears, 2) ?></td>
                     <td><button type="button" class="button arrears-toggle-button" data-target="<?= h($detailId) ?>">View Details ⌄</button></td>
                 </tr>
                 <tr id="<?= h($detailId) ?>" class="arrears-detail-row" hidden>
-                    <td colspan="7">
+                    <td colspan="5">
                         <table class="arrears-detail-table">
                             <thead>
                                 <tr><th>Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
