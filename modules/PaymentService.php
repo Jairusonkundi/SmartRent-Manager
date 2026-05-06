@@ -87,4 +87,105 @@ final class PaymentService
 
         return $tenantRows;
     }
+
+    /**
+     * Returns one ledger row per tenant using the latest imported Excel payment in the filtered period.
+     * The row details contain the tenant's month-by-month imported payment history.
+     */
+    public function tenantLedger(
+        string $search = '',
+        ?int $propertyId = null,
+        string $status = 'all',
+        string $monthFrom = '',
+        string $monthTo = ''
+    ): array {
+        $pdo = Database::connection();
+        $currentMonth = (new DateTimeImmutable('first day of this month'))->format('Y-m');
+
+        $where = ['1=1'];
+        $params = [];
+
+        if ($search !== '') {
+            $where[] = '(t.name LIKE ? OR t.phone LIKE ? OR t.tenant_phone LIKE ? OR u.unit_number LIKE ? OR pr.name LIKE ?)';
+            $searchParam = '%' . $search . '%';
+            array_push($params, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam);
+        }
+
+        if ($propertyId !== null) {
+            $where[] = 'pr.id = ?';
+            $params[] = $propertyId;
+        }
+
+        if ($monthFrom !== '') {
+            $where[] = 'p.billing_month >= ?';
+            $params[] = $monthFrom;
+        }
+
+        if ($monthTo !== '') {
+            $where[] = 'p.billing_month <= ?';
+            $params[] = $monthTo;
+        }
+
+        $statusSql = "CASE
+            WHEN p.amount_paid >= p.amount_expected THEN 'Paid'
+            WHEN p.amount_paid > 0 THEN 'Partial'
+            WHEN p.billing_month < ? THEN 'Overdue'
+            ELSE 'Unpaid'
+        END";
+        $selectParams = [$currentMonth];
+
+        if ($status !== 'all') {
+            $where[] = "{$statusSql} = ?";
+            $params[] = $currentMonth;
+            $params[] = $status;
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $stmt = $pdo->prepare(
+            "SELECT
+                p.id,
+                p.tenant_id,
+                p.billing_month,
+                p.amount_expected,
+                p.amount_paid,
+                (p.amount_expected - p.amount_paid) AS balance,
+                t.name,
+                COALESCE(NULLIF(t.phone, ''), NULLIF(t.tenant_phone, ''), '-') AS phone,
+                COALESCE(pr.name, 'Unassigned Property') AS property_name,
+                COALESCE(u.unit_number, '-') AS unit_number,
+                {$statusSql} AS status
+            FROM payments p
+            JOIN tenants t ON t.id = p.tenant_id
+            LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
+            LEFT JOIN units u ON u.id = l.unit_id
+            LEFT JOIN properties pr ON pr.id = u.property_id
+            WHERE {$whereSql}
+            ORDER BY t.name ASC, p.billing_month DESC, p.id DESC"
+        );
+        $stmt->execute(array_merge($selectParams, $params));
+        $paymentRows = $stmt->fetchAll() ?: [];
+
+        $ledgerRows = [];
+        foreach ($paymentRows as $paymentRow) {
+            $tenantId = (int) $paymentRow['tenant_id'];
+            $detailRow = [
+                'billing_month' => $paymentRow['billing_month'],
+                'amount_expected' => $paymentRow['amount_expected'],
+                'amount_paid' => $paymentRow['amount_paid'],
+                'balance' => $paymentRow['balance'],
+                'status' => $paymentRow['status'],
+            ];
+
+            if (!isset($ledgerRows[$tenantId])) {
+                $paymentRow['details'] = [$detailRow];
+                $ledgerRows[$tenantId] = $paymentRow;
+                continue;
+            }
+
+            $ledgerRows[$tenantId]['details'][] = $detailRow;
+        }
+
+        return array_values($ledgerRows);
+    }
+
 }

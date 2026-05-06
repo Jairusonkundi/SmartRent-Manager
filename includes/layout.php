@@ -27,8 +27,7 @@ function renderHeader(string $title): void
         <h1>SmartRent</h1>
         <nav>
             <a class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>" href="/public/dashboard.php">Dashboard</a>
-            <a class="<?= $currentPage === 'tenants.php' ? 'active' : '' ?>" href="/public/tenants.php">Tenants</a>
-            <a class="<?= $currentPage === 'payments.php' ? 'active' : '' ?>" href="/public/payments.php">Payments</a>
+            <a class="<?= in_array($currentPage, ['tenant_ledger.php', 'tenants.php', 'payments.php'], true) ? 'active' : '' ?>" href="/public/tenant_ledger.php">Tenant Ledger</a>
             <a class="<?= $currentPage === 'budget.php' ? 'active' : '' ?>" href="/public/budget.php">Budget</a>
             <a class="<?= $currentPage === 'arrears.php' ? 'active' : '' ?>" href="/public/arrears.php">Arrears</a>
             <a class="<?= $currentPage === 'reports.php' ? 'active' : '' ?>" href="/public/reports.php">Reports</a>

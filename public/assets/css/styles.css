@@ -362,3 +362,22 @@ th { cursor: pointer; background: #f9fafb; }
 .arrears-accordion-table tbody .arrears-parent-row > td.arrears-total-highest {
   color: #dc3545;
 }
+
+.muted-text {
+  color: var(--muted);
+  font-size: .86rem;
+}
+
+.tenant-ledger .tenant-toggle:disabled {
+  color: var(--text);
+  cursor: default;
+}
+
+.tenant-ledger-table th,
+.tenant-ledger-table td {
+  white-space: nowrap;
+}
+
+.tenant-ledger-detail-table {
+  background: #fff;
+}
