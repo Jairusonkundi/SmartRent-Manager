@@ -138,10 +138,21 @@ renderHeader('Tenant Ledger');
     <?php if ($totalRecords === 0): ?>
         <div class="alert">Welcome! Please upload your CSV to populate the tenant ledger.</div>
     <?php else: ?>
-    <div class="table-responsive">
+    <div class="table-responsive tenant-ledger-table-wrap">
     <table class="tenant-ledger-table arrears-accordion-table">
+        <colgroup>
+            <col class="ledger-index-col">
+            <col class="ledger-tenant-col">
+            <col class="ledger-location-col">
+            <col class="ledger-month-col">
+            <col class="ledger-money-col">
+            <col class="ledger-money-col">
+            <col class="ledger-money-col">
+            <col class="ledger-status-col">
+            <col class="ledger-action-col">
+        </colgroup>
         <thead>
-            <tr><th>#</th><th>Name</th><th>Phone Number</th><th>Property</th><th>Unit</th><th>Rent Month</th><th>Expected Amount (KSh)</th><th>Amount Paid (KSh)</th><th>Current Balance (KSh)</th><th>Status</th><th>Action</th></tr>
+            <tr><th>#</th><th>Tenant</th><th>Location</th><th>Rent Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th><th>Action</th></tr>
         </thead>
         <tbody>
             <?php foreach ($ledgerRows as $index => $row): ?>
@@ -153,15 +164,16 @@ renderHeader('Tenant Ledger');
                     $status = (string) $row['status'];
                 ?>
                 <tr class="arrears-parent-row tenant-ledger-parent-row">
-                    <td><?= $rowNumber ?></td>
-                    <td class="tenant-name-cell"><button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>" <?= $hasMultipleMonths ? '' : 'disabled' ?>><?= h((string) $row['name']) ?></button></td>
-                    <td><?= h((string) ($row['phone'] ?: '-')) ?></td>
-                    <td class="property-cell"><?= h((string) $row['property_name']) ?></td>
-                    <td class="unit-cell"><?= h((string) $row['unit_number']) ?></td>
-                    <td><?= h($formatMonth((string) $row['billing_month'])) ?></td>
-                    <td><?= formatKsh((float) $row['amount_expected']) ?></td>
-                    <td><?= formatKsh((float) $row['amount_paid']) ?></td>
-                    <td class="<?= (float) $row['balance'] > 0 ? 'text-unpaid' : 'text-paid' ?>"><?= formatKsh((float) $row['balance']) ?></td>
+                    <td class="ledger-index-cell"><?= $rowNumber ?></td>
+                    <td class="tenant-name-cell">
+                        <button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>" <?= $hasMultipleMonths ? '' : 'disabled' ?>><?= h((string) $row['name']) ?></button>
+                        <span class="tenant-phone"><?= h((string) ($row['phone'] ?: 'No phone')) ?></span>
+                    </td>
+                    <td class="location-cell" title="<?= h((string) $row['property_name'] . ' - ' . (string) $row['unit_number']) ?>"><?= h((string) $row['property_name']) ?> - <?= h((string) $row['unit_number']) ?></td>
+                    <td class="ledger-month-cell"><?= h($formatMonth((string) $row['billing_month'])) ?></td>
+                    <td class="ledger-money-cell"><span class="ledger-amount"><?= formatKsh((float) $row['amount_expected']) ?></span></td>
+                    <td class="ledger-money-cell"><span class="ledger-amount"><?= formatKsh((float) $row['amount_paid']) ?></span></td>
+                    <td class="ledger-money-cell <?= (float) $row['balance'] > 0 ? 'text-unpaid' : 'text-paid' ?>"><span class="ledger-amount"><?= formatKsh((float) $row['balance']) ?></span></td>
                     <td><span class="badge <?= h(strtolower($status === 'Overdue' ? 'unpaid' : $status)) ?>"><?= h($status) ?></span></td>
                     <td>
                         <?php if ($hasMultipleMonths): ?>
@@ -173,19 +185,19 @@ renderHeader('Tenant Ledger');
                 </tr>
                 <?php if ($hasMultipleMonths): ?>
                 <tr id="<?= h($detailId) ?>" class="arrears-detail-row" hidden>
-                    <td colspan="11">
+                    <td colspan="9">
                         <table class="arrears-detail-table tenant-ledger-detail-table">
                             <thead>
-                                <tr><th>Rent Month</th><th>Expected Amount (KSh)</th><th>Amount Paid (KSh)</th><th>Current Balance (KSh)</th><th>Status</th></tr>
+                                <tr><th>Rent Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
                             </thead>
                             <tbody>
                             <?php foreach ($details as $detail): ?>
                                 <?php $detailStatus = (string) $detail['status']; ?>
                                 <tr>
                                     <td><?= h($formatMonth((string) $detail['billing_month'])) ?></td>
-                                    <td><?= formatKsh((float) $detail['amount_expected']) ?></td>
-                                    <td><?= formatKsh((float) $detail['amount_paid']) ?></td>
-                                    <td class="<?= (float) $detail['balance'] > 0 ? 'text-unpaid' : 'text-paid' ?>"><?= formatKsh((float) $detail['balance']) ?></td>
+                                    <td class="ledger-money-cell"><span class="ledger-amount"><?= formatKsh((float) $detail['amount_expected']) ?></span></td>
+                                    <td class="ledger-money-cell"><span class="ledger-amount"><?= formatKsh((float) $detail['amount_paid']) ?></span></td>
+                                    <td class="ledger-money-cell <?= (float) $detail['balance'] > 0 ? 'text-unpaid' : 'text-paid' ?>"><span class="ledger-amount"><?= formatKsh((float) $detail['balance']) ?></span></td>
                                     <td><span class="badge <?= h(strtolower($detailStatus === 'Overdue' ? 'unpaid' : $detailStatus)) ?>"><?= h($detailStatus) ?></span></td>
                                 </tr>
                             <?php endforeach; ?>
