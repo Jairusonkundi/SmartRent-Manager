@@ -34,7 +34,7 @@ $totalRecords = count($allArrears);
 $portfolioTotal = 0.0;
 $oldestDebtMonth = null;
 foreach ($allArrears as $tenantArrear) {
-    $portfolioTotal += (float) ($tenantArrear['total_outstanding'] ?? 0);
+    $portfolioTotal += (float) ($tenantArrear['total_arrears'] ?? 0);
     foreach (($tenantArrear['details'] ?? []) as $detail) {
         $balance = (float) ($detail['balance'] ?? 0);
         if ($balance <= 0) {
@@ -70,9 +70,10 @@ $paginationHtml = renderPaginationLinks($totalRecords, $page, $paginationLimit, 
 renderHeader('Arrears');
 
 $currentMonthDate = new DateTimeImmutable('first day of this month');
+$highestArrears = (float) ($allArrears[0]['total_arrears'] ?? 0);
 ?>
 <section class="card">
-    <h3>Balance Owed per Tenant by Month (year-to-date)</h3>
+    <h3>Balance Owed per Tenant by Month</h3>
     <div class="cards arrears-summary-cards">
         <article class="card metric unpaid">
             <span class="metric-label">Total Arrears (Portfolio)</span>
@@ -97,7 +98,7 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
             </select>
         </label>
         <label>Search
-            <input type="text" id="arrearsSearchInput" name="search" value="<?= h($search) ?>" placeholder="Tenant or unit number">
+            <input type="text" id="arrearsSearchInput" name="search" value="<?= h($search) ?>" placeholder="Tenant, unit, or property">
         </label>
         <label>Property
             <select name="property_id">
@@ -119,22 +120,25 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
         <div class="alert">Welcome! Please upload your CSV to begin.</div>
     <?php else: ?>
     <div class="table-responsive">
-    <table class="sortable arrears-accordion-table">
-        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Total Amount Owed</th><th>Action</th></tr></thead>
+    <table class="arrears-accordion-table">
+        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Months Owed</th><th>Total Arrears</th><th>Action</th></tr></thead>
         <tbody>
             <?php foreach ($arrears as $index => $row): ?>
                 <?php $rowNumber = $offset + $index + 1; ?>
                 <?php $detailId = 'tenant-' . (int) $row['tenant_id']; ?>
-                <tr class="arrears-parent-row">
+                <?php $totalArrears = (float) ($row['total_arrears'] ?? 0); ?>
+                <?php $isHighestDebt = $highestArrears > 0 && $totalArrears === $highestArrears; ?>
+                <tr class="arrears-parent-row<?= $isHighestDebt ? ' highest-arrears-row' : '' ?>">
                     <td><?= $rowNumber ?></td>
                     <td><button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>"><?= h((string) $row['name']) ?></button></td>
                     <td><?= h((string) $row['property_name']) ?></td>
                     <td><?= h((string) $row['unit_number']) ?></td>
-                    <td class="text-unpaid"><?= 'Ksh ' . number_format((float) $row['total_outstanding'], 2) ?></td>
+                    <td class="months-owed"><?= h((string) ($row['months_owed'] ?? '')) ?></td>
+                    <td class="arrears-total<?= $isHighestDebt ? ' arrears-total-highest' : '' ?>"><?= 'Ksh ' . number_format($totalArrears, 2) ?></td>
                     <td><button type="button" class="button arrears-toggle-button" data-target="<?= h($detailId) ?>">View Details ⌄</button></td>
                 </tr>
                 <tr id="<?= h($detailId) ?>" class="arrears-detail-row" hidden>
-                    <td colspan="6">
+                    <td colspan="7">
                         <table class="arrears-detail-table">
                             <thead>
                                 <tr><th>Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th></tr>

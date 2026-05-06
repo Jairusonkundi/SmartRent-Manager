@@ -318,3 +318,27 @@ th { cursor: pointer; background: #f9fafb; }
   padding: 6px 10px;
   font-size: .86rem;
 }
+
+
+.months-owed {
+  color: var(--muted);
+  font-weight: 500;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arrears-total {
+  color: #991b1b;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.highest-arrears-row td {
+  background: #fff7f7;
+}
+
+.arrears-total-highest {
+  color: #b91c1c;
+}

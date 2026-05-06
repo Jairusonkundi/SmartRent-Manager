@@ -95,15 +95,15 @@ final class PaymentService
         $pdo = Database::connection();
 
         $where = [
-            "p.billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')",
             "p.billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')",
             'p.amount_paid < p.amount_expected',
         ];
         $params = [];
 
         if ($search !== '') {
-            $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
+            $where[] = '(t.name LIKE ? OR u.unit_number LIKE ? OR pr.name LIKE ?)';
             $searchParam = '%' . $search . '%';
+            $params[] = $searchParam;
             $params[] = $searchParam;
             $params[] = $searchParam;
         }
@@ -121,7 +121,12 @@ final class PaymentService
                 t.name,
                 COALESCE(pr.name, 'Unassigned Property') AS property_name,
                 COALESCE(u.unit_number, '-') AS unit_number,
-                SUM(p.amount_expected - p.amount_paid) AS total_outstanding
+                SUM(p.amount_expected - p.amount_paid) AS total_arrears,
+                GROUP_CONCAT(
+                    DISTINCT DATE_FORMAT(STR_TO_DATE(CONCAT(p.billing_month, '-01'), '%Y-%m-%d'), '%b %Y')
+                    ORDER BY p.billing_month ASC
+                    SEPARATOR ', '
+                ) AS months_owed
             FROM payments p
             JOIN tenants t ON t.id = p.tenant_id
             LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
@@ -129,7 +134,7 @@ final class PaymentService
             LEFT JOIN properties pr ON pr.id = u.property_id
             WHERE {$whereSql}
             GROUP BY p.tenant_id, t.name, pr.name, u.unit_number
-            ORDER BY t.name ASC"
+            ORDER BY total_arrears DESC, t.name ASC"
         );
 
         $stmt->execute($params);
