@@ -291,7 +291,15 @@ th { cursor: pointer; background: #f9fafb; }
   margin: 12px 0 18px;
 }
 
+.arrears-accordion-table th {
+  color: #2c3e50;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
 .arrears-parent-row td {
+  color: var(--text);
+  font-size: 1rem;
   font-weight: 400;
 }
 
@@ -311,6 +319,7 @@ th { cursor: pointer; background: #f9fafb; }
   padding: 0;
   color: #0f172a;
   cursor: pointer;
+  font-size: 1rem;
   font-weight: 400;
 }
 
@@ -321,9 +330,11 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 
-.arrears-total {
+.arrears-total,
+.arrears-detail-table .text-unpaid {
   color: #d9534f;
-  font-weight: 400;
+  font-size: .95rem;
+  font-weight: 700;
   white-space: nowrap;
 }
 
