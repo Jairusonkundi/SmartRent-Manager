@@ -121,16 +121,16 @@ $highestArrears = (float) ($allArrears[0]['total_arrears'] ?? 0);
     <?php else: ?>
     <div class="table-responsive">
     <table class="arrears-accordion-table">
-        <thead><tr><th>Tenant Name</th><th>Property Name</th><th>Unit Number</th><th>Total Arrears</th><th>Action</th></tr></thead>
+        <thead><tr><th class="tenant-name-column">Tenant Name</th><th class="property-column">Property Name</th><th class="unit-column">Unit Number</th><th class="arrears-total-column">Total Arrears</th><th class="action-column">Action</th></tr></thead>
         <tbody>
             <?php foreach ($arrears as $row): ?>
                 <?php $detailId = 'tenant-' . (int) $row['tenant_id']; ?>
                 <?php $totalArrears = (float) ($row['total_arrears'] ?? 0); ?>
                 <?php $isHighestDebt = $highestArrears > 0 && $totalArrears === $highestArrears; ?>
                 <tr class="arrears-parent-row<?= $isHighestDebt ? ' highest-arrears-row' : '' ?>">
-                    <td><button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>"><?= h((string) $row['name']) ?></button></td>
-                    <td><?= h((string) $row['property_name']) ?></td>
-                    <td><?= h((string) $row['unit_number']) ?></td>
+                    <td class="tenant-name-cell"><button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>"><?= h((string) $row['name']) ?></button></td>
+                    <td class="property-cell"><?= h((string) $row['property_name']) ?></td>
+                    <td class="unit-cell"><?= h((string) $row['unit_number']) ?></td>
                     <td class="arrears-total<?= $isHighestDebt ? ' arrears-total-highest' : '' ?>"><?= 'Ksh ' . number_format($totalArrears, 2) ?></td>
                     <td><button type="button" class="button arrears-toggle-button" data-target="<?= h($detailId) ?>">View Details ⌄</button></td>
                 </tr>
