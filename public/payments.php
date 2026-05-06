@@ -6,40 +6,10 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/layout.php';
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../modules/PaymentService.php';
 
 requireAuth();
 $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tenant_id = (int) ($_POST['tenant_id'] ?? 0);
-    $amountRaw = $_POST['amount'] ?? $_POST['amount_paid'] ?? 0;
-    $amount = (float) $amountRaw;
-    $monthInput = trim((string) ($_POST['month'] ?? date('Y-m')));
-    $paymentDateInput = trim((string) ($_POST['payment_date'] ?? date('Y-m-d')));
-
-    $monthDate = DateTimeImmutable::createFromFormat('!Y-m', $monthInput);
-    $billing_month = $monthDate ? $monthDate->format('Y-m') : '';
-
-    $paymentDateObj = DateTimeImmutable::createFromFormat('!Y-m-d', $paymentDateInput);
-    $date = $paymentDateObj && $paymentDateObj->format('Y-m-d') === $paymentDateInput
-        ? $paymentDateObj->format('Y-m-d')
-        : '';
-
-    $user_id = (int) ($_SESSION['user_id'] ?? 0);
-
-    if ($tenant_id <= 0 || $amount <= 0 || $billing_month === '' || $date === '' || $user_id <= 0) {
-        setFlash('error', 'Please select tenant and provide a valid amount, billing month, and payment date.');
-    } else {
-        $paymentService = new PaymentService();
-        $paymentService->recordPayment($tenant_id, $billing_month, $amount, $date, $_SESSION['user_id']);
-        setFlash('success', 'Payment of ' . formatKsh($amount) . ' recorded successfully!');
-    }
-
-    header('Location: /public/payments.php');
-    exit;
-}
 
 $page = max(1, (int) ($_GET['page'] ?? 1));
 $requestedLimit = (string) ($_GET['limit'] ?? '10');
@@ -54,7 +24,7 @@ $search = trim((string) ($_GET['search'] ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? ($_SESSION['global_property_filter'] ?? 'all'));
 $_SESSION['global_property_filter'] = $propertyFilter;
 $statusFilter = (string) ($_GET['status'] ?? 'all');
-$allowedStatuses = ['On Time', 'Late'];
+$allowedStatuses = ['Paid', 'Partial', 'Unpaid'];
 $dateFrom = (string) ($_GET['date_from'] ?? '');
 $dateTo = (string) ($_GET['date_to'] ?? '');
 
@@ -62,16 +32,15 @@ if ($statusFilter !== 'all' && !in_array($statusFilter, $allowedStatuses, true))
     $statusFilter = 'all';
 }
 
-$tenants = $pdo->query("SELECT id, name FROM tenants WHERE status='active' ORDER BY name")->fetchAll();
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
 $where = ['1=1'];
 $params = [];
 
 if ($search !== '') {
-    $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
+    $where[] = '(t.name LIKE ? OR u.unit_number LIKE ? OR pr.name LIKE ?)';
     $searchParam = '%' . $search . '%';
-    array_push($params, $searchParam, $searchParam);
+    array_push($params, $searchParam, $searchParam, $searchParam);
 }
 
 if ($propertyFilter !== 'all') {
@@ -80,7 +49,11 @@ if ($propertyFilter !== 'all') {
 }
 
 if ($statusFilter !== 'all') {
-    $where[] = 'p.status = ?';
+    $where[] = "(CASE
+        WHEN p.amount_paid >= p.amount_expected THEN 'Paid'
+        WHEN p.amount_paid > 0 THEN 'Partial'
+        ELSE 'Unpaid'
+    END) = ?";
     array_push($params, $statusFilter);
 }
 
@@ -114,9 +87,13 @@ $paymentsSql = "SELECT
         t.name,
         pr.name AS property_name,
         u.unit_number,
-        p.status AS payment_status
+        CASE
+            WHEN p.amount_paid >= p.amount_expected THEN 'Paid'
+            WHEN p.amount_paid > 0 THEN 'Partial'
+            ELSE 'Unpaid'
+        END AS payment_status
     {$baseFrom}
-    ORDER BY p.payment_date DESC";
+    ORDER BY p.payment_date DESC, p.id DESC";
 
 if (!$isAllLimit) {
     $paymentsSql .= ' LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
@@ -139,25 +116,9 @@ $paginationHtml = renderPaginationLinks($totalRecords, $page, $paginationLimit, 
 
 renderHeader('Payments');
 ?>
-<section class="card">
-    <h3>Record Payment</h3>
-    <form method="post" class="grid-form">
-        <label>Tenant
-            <select name="tenant_id" required>
-                <option value="">Select tenant</option>
-                <?php foreach ($tenants as $tenant): ?>
-                    <option value="<?= (int) $tenant['id'] ?>"><?= h($tenant['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Amount Paid <input name="amount_paid" type="number" min="0" step="0.01" required></label>
-        <label>Rent Month <input name="month" type="month" value="<?= date('Y-m') ?>" required></label>
-        <label>Payment Date <input name="payment_date" type="date" value="<?= date('Y-m-d') ?>" required></label>
-        <button type="submit">Save Payment</button>
-    </form>
-</section>
-<section class="card">
+<section class="card payments-audit-log">
     <h3>Recent Payments</h3>
+    <p class="section-help">Imported Excel payment records are shown below as the primary audit log. Status is calculated from expected rent versus imported amount paid so partial or missing payments reconcile with arrears.</p>
     <form method="get" id="paymentsFilters" class="control-bar filter-form">
         <label>Limit
             <select name="limit">
@@ -168,7 +129,7 @@ renderHeader('Payments');
             </select>
         </label>
         <label>Search
-            <input type="text" name="search" value="<?= h($search) ?>" placeholder="Tenant or unit number">
+            <input type="text" name="search" value="<?= h($search) ?>" placeholder="Tenant, property, or unit">
         </label>
         <label>Property
             <select name="property_id">
@@ -203,7 +164,8 @@ renderHeader('Payments');
     <?php if ($totalRecords === 0): ?>
         <div class="alert">Welcome! Please upload your CSV to begin.</div>
     <?php else: ?>
-    <table class="sortable">
+    <div class="table-responsive">
+    <table class="sortable payments-audit-table">
         <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Amount</th><th>Payment Date</th><th>Month</th><th>Payment Status</th></tr></thead>
         <tbody>
             <?php foreach ($recentPayments as $index => $p): ?>
@@ -213,14 +175,15 @@ renderHeader('Payments');
                     <td><?= h($p['name']) ?></td>
                     <td><?= h($p['property_name']) ?></td>
                     <td><?= h($p['unit_number']) ?></td>
-                    <td><?= formatKsh((float) $p['amount_paid']) ?></td>
+                    <td><?= 'KSh ' . number_format((float) $p['amount_paid'], 2, '.', ',') ?></td>
                     <td><?= $p['payment_date'] ? h($p['payment_date']) : '-' ?></td>
                     <td><?= date('M Y', strtotime($p['billing_month'] . '-01')) ?></td>
-                    <td><span class="badge <?= strtolower($p['payment_status']) === 'on time' ? 'paid' : 'partial' ?>"><?= h($p['payment_status']) ?></span></td>
+                    <td><span class="badge <?= h(strtolower((string) $p['payment_status'])) ?>"><?= h($p['payment_status']) ?></span></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
     <?php endif; ?>
     <?= $paginationHtml ?>
 </section>

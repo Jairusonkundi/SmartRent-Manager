@@ -72,7 +72,7 @@ mysql -u root -p < database/schema.sql
 ## 5) Core Modules
 - **Dashboard:** KPIs + trend and distribution charts.
 - **Tenants:** active tenant listing with property/unit mapping.
-- **Payments:** fast payment capture with validation and tenant dropdown.
+- **Payments:** Excel-imported payment audit log with property, date range, search, and Paid/Partial/Unpaid status filters.
 - **Budget:** monthly and quarterly expected vs paid vs outstanding comparisons.
 - **Arrears:** unpaid/partial tenants and high-risk balances.
 - **Reports:** export monthly and collection PDFs.
