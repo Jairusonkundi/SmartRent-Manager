@@ -14,7 +14,7 @@ const drawDashboard = () => {
       }))
     : [];
   const distribution = Array.isArray(window.dashboardData.distribution) ? window.dashboardData.distribution : [];
-  const formatKsh = value => `Ksh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const labels = trend.map(row => row.month_key);
   const expected = trend.map(row => row.expected);
@@ -133,7 +133,7 @@ const drawBudget = () => {
           return quarterNumber <= currentQuarter;
         })
     : [];
-  const formatKsh = value => `Ksh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const monthlyCanvas = document.getElementById('monthlyBudget');
   if (monthlyCanvas) {
