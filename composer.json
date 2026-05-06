@@ -1,0 +1,13 @@
+{
+    "name": "smartrent/manager",
+    "authors": [
+        {
+            "name": "Jairus Onknundi",
+            "email": "jairusonkundi@gmail.com"
+        }
+    ],
+    "require": {
+        "dompdf/dompdf": "^3.1",
+        "phpoffice/phpspreadsheet": "^5.7"
+    }
+}
