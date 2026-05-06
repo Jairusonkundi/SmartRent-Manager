@@ -95,41 +95,49 @@ final class PaymentService
         $pdo = Database::connection();
 
         $where = [
-            "p.billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')",
-            "p.billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')",
-            'p.amount_paid < p.amount_expected',
+            "mb.billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')",
+            "mb.billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')",
+            '(mb.amount_expected - mb.amount_paid) > 0',
         ];
         $params = [];
 
         if ($search !== '') {
-            $where[] = '(t.name LIKE ? OR u.unit_number LIKE ?)';
+            $where[] = '(t.name LIKE ? OR COALESCE(loc.unit_number, \'\') LIKE ?)';
             $searchParam = '%' . $search . '%';
             $params[] = $searchParam;
             $params[] = $searchParam;
         }
 
         if ($propertyId !== null) {
-            $where[] = 'pr.id = ?';
+            $where[] = 'EXISTS (
+                SELECT 1
+                FROM leases fl
+                JOIN units fu ON fu.id = fl.unit_id
+                WHERE fl.tenant_id = t.id
+                  AND fl.status = \'active\'
+                  AND fu.property_id = ?
+            )';
             $params[] = $propertyId;
         }
 
         $whereSql = implode(' AND ', $where);
+        $monthlyBalancesSql = $this->monthlyPaymentBalancesSql();
+        $tenantLocationSql = $this->tenantLocationSql();
 
         $stmt = $pdo->prepare(
             "SELECT
-                p.tenant_id,
+                t.id AS tenant_id,
                 t.name,
-                COALESCE(pr.name, 'Unassigned Property') AS property_name,
-                COALESCE(u.unit_number, '-') AS unit_number,
-                SUM(p.amount_expected - p.amount_paid) AS total_outstanding
-            FROM payments p
-            JOIN tenants t ON t.id = p.tenant_id
-            LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
-            LEFT JOIN units u ON u.id = l.unit_id
-            LEFT JOIN properties pr ON pr.id = u.property_id
+                COALESCE(loc.property_name, 'Unassigned Property') AS property_name,
+                COALESCE(loc.unit_number, '-') AS unit_number,
+                SUM(mb.amount_expected - mb.amount_paid) AS total_debt,
+                COUNT(*) AS unpaid_months
+            FROM ({$monthlyBalancesSql}) mb
+            JOIN tenants t ON t.id = mb.tenant_id
+            LEFT JOIN ({$tenantLocationSql}) loc ON loc.tenant_id = t.id
             WHERE {$whereSql}
-            GROUP BY p.tenant_id, t.name, pr.name, u.unit_number
-            ORDER BY t.name ASC"
+            GROUP BY t.id, t.name, loc.property_name, loc.unit_number
+            ORDER BY total_debt DESC"
         );
 
         $stmt->execute($params);
@@ -141,18 +149,16 @@ final class PaymentService
 
         $detailsStmt = $pdo->prepare(
             "SELECT
-                p.tenant_id,
-                p.billing_month,
-                p.amount_expected,
-                p.amount_paid,
-                (p.amount_expected - p.amount_paid) AS balance
-            FROM payments p
-            JOIN tenants t ON t.id = p.tenant_id
-            LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
-            LEFT JOIN units u ON u.id = l.unit_id
-            LEFT JOIN properties pr ON pr.id = u.property_id
+                t.id AS tenant_id,
+                mb.billing_month,
+                mb.amount_expected,
+                mb.amount_paid,
+                (mb.amount_expected - mb.amount_paid) AS balance
+            FROM ({$monthlyBalancesSql}) mb
+            JOIN tenants t ON t.id = mb.tenant_id
+            LEFT JOIN ({$tenantLocationSql}) loc ON loc.tenant_id = t.id
             WHERE {$whereSql}
-            ORDER BY p.billing_month ASC"
+            ORDER BY mb.billing_month ASC"
         );
         $detailsStmt->execute($params);
         $detailRows = $detailsStmt->fetchAll() ?: [];
@@ -162,10 +168,98 @@ final class PaymentService
         }
 
         foreach ($tenantRows as &$tenantRow) {
-            $tenantRow['details'] = $detailsByTenant[(int) $tenantRow['tenant_id']] ?? [];
+            $tenantId = (int) $tenantRow['tenant_id'];
+            $tenantRow['total_outstanding'] = (float) $tenantRow['total_debt'];
+            $tenantRow['details'] = $detailsByTenant[$tenantId] ?? [];
         }
         unset($tenantRow);
 
         return $tenantRows;
+    }
+
+    public function arrearsPortfolioStats(?int $propertyId = null): array
+    {
+        $pdo = Database::connection();
+        $params = [];
+        $propertyPredicate = '';
+
+        if ($propertyId !== null) {
+            $propertyPredicate = ' AND EXISTS (
+                SELECT 1
+                FROM leases fl
+                JOIN units fu ON fu.id = fl.unit_id
+                WHERE fl.tenant_id = mb.tenant_id
+                  AND fl.status = \'active\'
+                  AND fu.property_id = ?
+            )';
+            $params[] = $propertyId;
+        }
+
+        $monthlyBalancesSql = $this->monthlyPaymentBalancesSql();
+        $stmt = $pdo->prepare(
+            "SELECT
+                COALESCE(SUM(CASE WHEN balance > 0 THEN balance ELSE 0 END), 0) AS total_arrears,
+                COALESCE(SUM(amount_expected), 0) AS total_expected_ytd
+            FROM (
+                SELECT
+                    mb.tenant_id,
+                    mb.billing_month,
+                    mb.amount_expected,
+                    mb.amount_paid,
+                    (mb.amount_expected - mb.amount_paid) AS balance
+                FROM ({$monthlyBalancesSql}) mb
+                WHERE mb.billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')
+                  AND mb.billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
+                  {$propertyPredicate}
+            ) ytd"
+        );
+        $stmt->execute($params);
+        $totals = $stmt->fetch() ?: ['total_arrears' => 0, 'total_expected_ytd' => 0];
+
+        $riskStmt = $pdo->prepare(
+            "SELECT COUNT(*)
+            FROM (
+                SELECT mb.tenant_id
+                FROM ({$monthlyBalancesSql}) mb
+                WHERE mb.billing_month >= DATE_FORMAT(CURRENT_DATE, '%Y-01')
+                  AND mb.billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
+                  AND (mb.amount_expected - mb.amount_paid) > 0
+                  {$propertyPredicate}
+                GROUP BY mb.tenant_id
+                HAVING COUNT(*) > 2
+            ) high_risk"
+        );
+        $riskStmt->execute($params);
+
+        return [
+            'total_arrears' => (float) ($totals['total_arrears'] ?? 0),
+            'total_expected_ytd' => (float) ($totals['total_expected_ytd'] ?? 0),
+            'high_risk_tenants' => (int) ($riskStmt->fetchColumn() ?: 0),
+        ];
+    }
+
+    private function monthlyPaymentBalancesSql(): string
+    {
+        return "SELECT
+                tenant_id,
+                billing_month,
+                MAX(amount_expected) AS amount_expected,
+                SUM(amount_paid) AS amount_paid
+            FROM payments
+            WHERE billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
+            GROUP BY tenant_id, billing_month";
+    }
+
+    private function tenantLocationSql(): string
+    {
+        return "SELECT
+                l.tenant_id,
+                GROUP_CONCAT(DISTINCT pr.name ORDER BY pr.name SEPARATOR ', ') AS property_name,
+                GROUP_CONCAT(DISTINCT u.unit_number ORDER BY u.unit_number SEPARATOR ', ') AS unit_number
+            FROM leases l
+            JOIN units u ON u.id = l.unit_id
+            LEFT JOIN properties pr ON pr.id = u.property_id
+            WHERE l.status = 'active'
+            GROUP BY l.tenant_id";
     }
 }

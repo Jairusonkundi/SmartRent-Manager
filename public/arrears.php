@@ -22,6 +22,9 @@ if (!$isAllLimit && !in_array($limit, $allowedLimits, true)) {
 }
 
 $search = trim((string) ($_GET['search'] ?? ''));
+if ($search !== '') {
+    $page = 1;
+}
 $propertyFilter = (string) ($_GET['property_id'] ?? ($_SESSION['global_property_filter'] ?? 'all'));
 $_SESSION['global_property_filter'] = $propertyFilter;
 $propertyId = $propertyFilter !== 'all' ? (int) $propertyFilter : null;
@@ -30,25 +33,12 @@ $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetc
 
 $paymentService = new PaymentService();
 $allArrears = $paymentService->arrearsSummaryByTenant($search, $propertyId);
+$portfolioStats = $paymentService->arrearsPortfolioStats($propertyId);
 $totalRecords = count($allArrears);
-$portfolioTotal = 0.0;
-$oldestDebtMonth = null;
-foreach ($allArrears as $tenantArrear) {
-    $portfolioTotal += (float) ($tenantArrear['total_outstanding'] ?? 0);
-    foreach (($tenantArrear['details'] ?? []) as $detail) {
-        $balance = (float) ($detail['balance'] ?? 0);
-        if ($balance <= 0) {
-            continue;
-        }
-        $monthDate = DateTimeImmutable::createFromFormat('Y-m', (string) $detail['billing_month']);
-        if (!$monthDate) {
-            $monthDate = new DateTimeImmutable((string) $detail['billing_month'] . '-01');
-        }
-        if ($oldestDebtMonth === null || $monthDate < $oldestDebtMonth) {
-            $oldestDebtMonth = $monthDate;
-        }
-    }
-}
+$portfolioTotal = (float) $portfolioStats['total_arrears'];
+$totalExpectedYtd = (float) $portfolioStats['total_expected_ytd'];
+$collectionGapPercent = $totalExpectedYtd > 0 ? ($portfolioTotal / $totalExpectedYtd) * 100 : 0.0;
+$highRiskTenants = (int) $portfolioStats['high_risk_tenants'];
 
 if ($isAllLimit) {
     $arrears = $allArrears;
@@ -71,20 +61,22 @@ renderHeader('Arrears');
 
 $currentMonthDate = new DateTimeImmutable('first day of this month');
 ?>
-<section class="card">
-    <h3>Balance Owed per Tenant by Month (year-to-date)</h3>
+<section class="card arrears-management">
+    <h3>Arrears Hit List (highest debt first)</h3>
     <div class="cards arrears-summary-cards">
         <article class="card metric unpaid">
-            <span class="metric-label">Total Arrears (Portfolio)</span>
+            <span class="metric-label">Total Portfolio Arrears</span>
             <strong><?= 'Ksh ' . number_format($portfolioTotal, 2) ?></strong>
         </article>
         <article class="card metric">
-            <span class="metric-label">Affected Tenants</span>
-            <strong><?= number_format($totalRecords) ?></strong>
+            <span class="metric-label">High-Risk Tenants</span>
+            <strong><?= number_format($highRiskTenants) ?></strong>
+            <small>Owing more than 2 months</small>
         </article>
         <article class="card metric">
-            <span class="metric-label">Oldest Debt</span>
-            <strong><?= $oldestDebtMonth ? h($oldestDebtMonth->format('F Y')) : 'N/A' ?></strong>
+            <span class="metric-label">Collection Gap %</span>
+            <strong><?= number_format($collectionGapPercent, 2) ?>%</strong>
+            <small>Total arrears vs. expected YTD</small>
         </article>
     </div>
     <form method="get" id="arrearsFilters" class="control-bar filter-form">
@@ -111,33 +103,43 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
         </label>
         <div class="control-actions">
             <button type="submit">Search</button>
-            <button type="button" class="button" onclick="resetFilters('arrearsFilters','/public/arrears.php')">Clear Filters</button>
+            <button type="button" class="button" onclick="resetFilters('arrearsFilters','/public/arrears.php?property_id=all&limit=10')">Clear Filters</button>
         </div>
     </form>
-    <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
+    <p>Showing <?= $currentCount ?> tenant rows sorted by highest Total Debt | Total Found: <?= $totalRecords ?></p>
     <?php if ($totalRecords === 0): ?>
         <div class="alert">Welcome! Please upload your CSV to begin.</div>
     <?php else: ?>
     <div class="table-responsive">
-    <table class="sortable arrears-accordion-table">
-        <thead><tr><th>#</th><th>Tenant</th><th>Property</th><th>Unit</th><th>Total Amount Owed</th><th>Action</th></tr></thead>
+    <table class="arrears-accordion-table">
+        <thead><tr><th>Rank</th><th>Tenant Name</th><th>Unit Number</th><th>Total Debt (Ksh)</th><th>Aging Status</th></tr></thead>
         <tbody>
             <?php foreach ($arrears as $index => $row): ?>
                 <?php $rowNumber = $offset + $index + 1; ?>
-                <?php $detailId = 'tenant-' . (int) $row['tenant_id']; ?>
-                <tr class="arrears-parent-row">
-                    <td><?= $rowNumber ?></td>
-                    <td><button type="button" class="tenant-toggle" aria-expanded="false" aria-controls="<?= h($detailId) ?>"><?= h((string) $row['name']) ?></button></td>
-                    <td><?= h((string) $row['property_name']) ?></td>
+                <?php
+                    $detailId = 'tenant-' . (int) $row['tenant_id'];
+                    $unpaidMonths = count($row['details'] ?? []);
+                    $agingStatus = $unpaidMonths === 1 ? '1 Month Overdue' : $unpaidMonths . ' Months Overdue';
+                    $isAutoExpanded = $search !== '';
+                ?>
+                <tr class="arrears-parent-row" data-target="<?= h($detailId) ?>" tabindex="0" aria-expanded="<?= $isAutoExpanded ? 'true' : 'false' ?>">
+                    <td><span class="accordion-arrow" aria-hidden="true">▸</span> <?= $rowNumber ?></td>
+                    <td>
+                        <button type="button" class="tenant-toggle" aria-expanded="<?= $isAutoExpanded ? 'true' : 'false' ?>" aria-controls="<?= h($detailId) ?>">
+                            <?= h((string) $row['name']) ?>
+                        </button>
+                        <small><?= h((string) $row['property_name']) ?></small>
+                    </td>
                     <td><?= h((string) $row['unit_number']) ?></td>
-                    <td class="text-unpaid"><?= 'Ksh ' . number_format((float) $row['total_outstanding'], 2) ?></td>
-                    <td><button type="button" class="button arrears-toggle-button" data-target="<?= h($detailId) ?>">View Details ⌄</button></td>
+                    <td class="arrears-total-debt"><?= 'Ksh ' . number_format((float) $row['total_debt'], 2) ?></td>
+                    <td><span class="badge unpaid"><?= h($agingStatus) ?></span></td>
                 </tr>
-                <tr id="<?= h($detailId) ?>" class="arrears-detail-row" hidden>
-                    <td colspan="6">
+                <tr id="<?= h($detailId) ?>" class="arrears-detail-row" <?= $isAutoExpanded ? 'data-expanded="true"' : 'hidden' ?>>
+                    <td colspan="5">
+                        <div class="arrears-detail-panel">
                         <table class="arrears-detail-table">
                             <thead>
-                                <tr><th>Month</th><th>Expected</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
+                                <tr><th>Specific Month</th><th>Monthly Rent</th><th>Actual Paid</th><th>Remaining Balance</th><th>Overdue Status</th></tr>
                             </thead>
                             <tbody>
                             <?php foreach (($row['details'] ?? []) as $detail): ?>
@@ -145,18 +147,20 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
                                     $monthDate = DateTimeImmutable::createFromFormat('Y-m', (string) $detail['billing_month']) ?: new DateTimeImmutable((string) $detail['billing_month'] . '-01');
                                     $monthLabel = $monthDate->format('F Y');
                                     $monthsOverdue = ((int) $currentMonthDate->format('Y') - (int) $monthDate->format('Y')) * 12 + ((int) $currentMonthDate->format('n') - (int) $monthDate->format('n'));
-                                    $statusLabel = $monthsOverdue >= 2 ? '🔴 Critical' : '🟠 Overdue';
+                                    $daysOverdue = max(30, ($monthsOverdue + 1) * 30);
+                                    $statusLabel = $daysOverdue . ' Days Overdue';
                                 ?>
                                 <tr>
                                     <td><?= h($monthLabel) ?></td>
                                     <td><?= 'Ksh ' . number_format((float) $detail['amount_expected'], 2) ?></td>
                                     <td><?= 'Ksh ' . number_format((float) $detail['amount_paid'], 2) ?></td>
                                     <td class="text-unpaid"><?= 'Ksh ' . number_format((float) $detail['balance'], 2) ?></td>
-                                    <td><?= h($statusLabel) ?></td>
+                                    <td><span class="badge month-risk"><?= h($statusLabel) ?></span></td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                        </div>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -180,21 +184,64 @@ $currentMonthDate = new DateTimeImmutable('first day of this month');
         });
     }());
     (function () {
-        const buttons = document.querySelectorAll('.arrears-toggle-button, .tenant-toggle');
-        buttons.forEach(function (button) {
-            button.addEventListener('click', function () {
-                const rowId = button.dataset.target || button.getAttribute('aria-controls');
+        const setExpanded = function (detailRow, expanded) {
+            const panel = detailRow.querySelector('.arrears-detail-panel');
+            if (!panel) return;
+
+            if (expanded) {
+                detailRow.hidden = false;
+                requestAnimationFrame(function () {
+                    panel.style.maxHeight = panel.scrollHeight + 'px';
+                    detailRow.dataset.expanded = 'true';
+                });
+            } else {
+                panel.style.maxHeight = panel.scrollHeight + 'px';
+                requestAnimationFrame(function () {
+                    panel.style.maxHeight = '0px';
+                    delete detailRow.dataset.expanded;
+                });
+                window.setTimeout(function () {
+                    if (!detailRow.dataset.expanded) {
+                        detailRow.hidden = true;
+                    }
+                }, 240);
+            }
+        };
+
+        const syncControls = function (rowId, expanded) {
+            document.querySelectorAll('[data-target="' + rowId + '"], [aria-controls="' + rowId + '"]').forEach(function (ctrl) {
+                ctrl.setAttribute('aria-expanded', String(expanded));
+            });
+        };
+
+        document.querySelectorAll('.arrears-detail-row').forEach(function (detailRow) {
+            const panel = detailRow.querySelector('.arrears-detail-panel');
+            if (!panel) return;
+            if (detailRow.dataset.expanded === 'true') {
+                detailRow.hidden = false;
+                panel.style.maxHeight = panel.scrollHeight + 'px';
+                syncControls(detailRow.id, true);
+            } else {
+                panel.style.maxHeight = '0px';
+            }
+        });
+
+        document.querySelectorAll('.arrears-parent-row, .tenant-toggle').forEach(function (trigger) {
+            trigger.addEventListener('click', function (event) {
+                const rowId = trigger.dataset.target || trigger.getAttribute('aria-controls');
                 if (!rowId) return;
                 const detailRow = document.getElementById(rowId);
                 if (!detailRow) return;
-                const isHidden = detailRow.hasAttribute('hidden');
-                detailRow.toggleAttribute('hidden');
-                document.querySelectorAll('[data-target="' + rowId + '"], [aria-controls="' + rowId + '"]').forEach(function (ctrl) {
-                    ctrl.setAttribute('aria-expanded', String(isHidden));
-                    if (ctrl.classList.contains('arrears-toggle-button')) {
-                        ctrl.textContent = isHidden ? 'Hide Details ⌃' : 'View Details ⌄';
-                    }
-                });
+                const expanded = detailRow.dataset.expanded === 'true';
+                setExpanded(detailRow, !expanded);
+                syncControls(rowId, !expanded);
+                event.stopPropagation();
+            });
+
+            trigger.addEventListener('keydown', function (event) {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                trigger.click();
             });
         });
     }());

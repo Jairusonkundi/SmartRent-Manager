@@ -318,3 +318,97 @@ th { cursor: pointer; background: #f9fafb; }
   padding: 6px 10px;
   font-size: .86rem;
 }
+
+.arrears-management h3 {
+  margin-top: 0;
+}
+
+.arrears-summary-cards .metric small {
+  color: var(--muted);
+  display: block;
+  font-size: .78rem;
+  margin-top: 4px;
+}
+
+.arrears-accordion-table .arrears-parent-row {
+  cursor: pointer;
+  transition: background .18s ease, box-shadow .18s ease;
+}
+
+.arrears-accordion-table .arrears-parent-row:hover,
+.arrears-accordion-table .arrears-parent-row:focus {
+  background: #fff7ed;
+  outline: none;
+}
+
+.arrears-accordion-table .arrears-parent-row[aria-expanded="true"] {
+  background: #fff7ed;
+  box-shadow: inset 4px 0 0 var(--unpaid);
+}
+
+.arrears-accordion-table .arrears-parent-row[aria-expanded="true"] .accordion-arrow {
+  transform: rotate(90deg);
+}
+
+.accordion-arrow {
+  display: inline-block;
+  color: var(--unpaid);
+  font-weight: 900;
+  margin-right: 6px;
+  transition: transform .2s ease;
+}
+
+.tenant-toggle {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: .98rem;
+  padding: 0;
+  text-align: left;
+}
+
+.tenant-toggle:hover {
+  filter: none;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.arrears-parent-row small {
+  color: var(--muted);
+  display: block;
+  font-size: .78rem;
+  margin-top: 3px;
+}
+
+.arrears-total-debt {
+  color: var(--unpaid);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.arrears-detail-row td {
+  background: #fffafa;
+  padding: 0 14px 0 48px;
+}
+
+.arrears-detail-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .22s ease;
+}
+
+.arrears-detail-table {
+  margin: 12px 0 16px;
+  border: 1px solid #fee2e2;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.arrears-detail-table th,
+.arrears-detail-table td {
+  background: #fff;
+}
+
+.arrears-detail-table th {
+  color: #7f1d1d;
+}
