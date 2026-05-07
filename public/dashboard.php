@@ -142,22 +142,6 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <?php if (!$hasPayments): ?>
 <section class="card"><h3>Welcome! Please upload your CSV to begin</h3><p>Import your wide-format rent collection data to unlock dashboard metrics, arrears, and reports.</p><a class="button-link" href="/public/upload_csv.php">Upload CSV</a></section>
 <?php renderFooter(); return; endif; ?>
-<section class="card data-management-card">
-    <h4>Data Management</h4>
-    <div class="data-management-actions">
-        <div class="data-management-item">
-            <form method="post" action="/includes/import_handler.php" enctype="multipart/form-data" class="inline-upload-form">
-                <input id="dashboard_csv_file" name="csv_file" type="file" accept=".csv,text/csv" required hidden>
-                <button type="button" class="button-link action-upload" onclick="document.getElementById('dashboard_csv_file').click();">UPLOAD CSV FILE</button>
-            </form>
-            <p>Upload the raw CSV file here for the system to process and perform financial analysis.</p>
-        </div>
-        <div class="data-management-item">
-            <a class="button-link action-download" href="/public/download_data.php?type=raw">DOWNLOAD CSV FILE</a>
-            <p>Download the original uploaded file to make edits or manual corrections.</p>
-        </div>
-    </div>
-</section>
 <section class="card budget-filter-card">
     <form method="get" id="dashboardFilters" class="control-bar filter-form budget-filter-row">
         <label>Property
@@ -192,16 +176,78 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
     <article class="card"><h3>Revenue Trend (Year-to-Date)</h3><canvas id="incomeTrend"></canvas></article>
     <article class="card compact-pie-card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
 </section>
+<section class="card data-management-card">
+    <h4>Data Management</h4>
+    <div class="data-management-actions">
+        <div class="data-management-item">
+            <form method="post" action="/includes/import_handler.php" enctype="multipart/form-data" class="inline-upload-form">
+                <input id="dashboard_csv_file" name="csv_file" type="file" accept=".csv,text/csv" required hidden>
+                <button type="button" class="button-link action-upload" onclick="document.getElementById('dashboard_csv_file').click();">UPLOAD CSV FILE</button>
+            </form>
+            <p>Upload the raw CSV file here for the system to process and perform financial analysis.</p>
+        </div>
+        <div class="data-management-item">
+            <a id="dashboard_download_csv" class="button-link action-download" href="/public/download_data.php?type=raw">DOWNLOAD CSV FILE</a>
+            <p>Download the original uploaded file to make edits or manual corrections.</p>
+        </div>
+    </div>
+</section>
 <script>
 window.dashboardData = { trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>, distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?> };
 document.addEventListener('DOMContentLoaded', () => {
     const csvInput = document.getElementById('dashboard_csv_file');
-    if (!csvInput) return;
-    csvInput.addEventListener('change', () => {
-        if (csvInput.files && csvInput.files.length > 0) {
+    const downloadLink = document.getElementById('dashboard_download_csv');
+    const rawCsvStorageKey = 'dashboardRawCsvUpload';
+
+    const triggerRawCsvDownload = (name, content) => {
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const blobUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = blobUrl;
+        anchor.download = name || 'raw-upload.csv';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(blobUrl);
+    };
+
+    if (csvInput) {
+        csvInput.addEventListener('change', async () => {
+            if (!csvInput.files || csvInput.files.length === 0) {
+                return;
+            }
+
+            const [file] = csvInput.files;
+            try {
+                const content = await file.text();
+                localStorage.setItem(rawCsvStorageKey, JSON.stringify({
+                    name: file.name || 'raw-upload.csv',
+                    content,
+                    updatedAt: new Date().toISOString()
+                }));
+            } catch (error) {
+                localStorage.removeItem(rawCsvStorageKey);
+            }
+
             csvInput.form?.submit();
-        }
-    });
+        });
+    }
+
+    if (downloadLink) {
+        downloadLink.addEventListener('click', event => {
+            const storedRawCsv = localStorage.getItem(rawCsvStorageKey);
+            if (!storedRawCsv) return;
+            try {
+                const parsed = JSON.parse(storedRawCsv);
+                if (parsed && typeof parsed.content === 'string' && parsed.content.length > 0) {
+                    event.preventDefault();
+                    triggerRawCsvDownload(String(parsed.name || 'raw-upload.csv'), parsed.content);
+                }
+            } catch (error) {
+                localStorage.removeItem(rawCsvStorageKey);
+            }
+        });
+    }
 });
 </script>
 <?php renderFooter(); ?>
