@@ -141,3 +141,11 @@ CREATE TABLE expenses (
     KEY idx_expenses_property_date (property_id, date),
     KEY idx_expenses_category (category)
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS import_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    source_file VARCHAR(255) NOT NULL,
+    records_processed INT UNSIGNED NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_import_logs_created_at (created_at)
+) ENGINE=InnoDB;

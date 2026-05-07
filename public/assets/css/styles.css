@@ -305,8 +305,8 @@ th { cursor: pointer; background: #f9fafb; }
 
 .budget-filter-row {
   margin-bottom: 0;
-  grid-template-columns: minmax(110px, 150px) minmax(140px, 180px) minmax(160px, 220px) auto;
-  gap: 10px;
+  grid-template-columns: minmax(130px, 180px) minmax(110px, 130px) minmax(130px, 170px) minmax(120px, 140px) auto;
+  gap: 14px;
 }
 
 .budget-filter-row label {
@@ -332,7 +332,7 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .dashboard-charts-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
   gap: 16px;
 }
 
@@ -342,11 +342,45 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .compact-pie-card canvas {
-  max-width: 260px;
-  max-height: 260px;
+  max-width: 220px;
+  max-height: 220px;
   width: 100% !important;
-  height: 260px !important;
+  height: 220px !important;
   margin: 0 auto;
+}
+
+.reference-month-field {
+  max-width: 140px;
+}
+
+.button-secondary {
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.subtle-alert-card {
+  border-left: 4px solid #f59e0b;
+  color: #6b7280;
+}
+
+.latest-imports-card {
+  max-width: 420px;
+}
+
+.latest-import-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.latest-import-list li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 8px;
 }
 
 .selected-period-title {
