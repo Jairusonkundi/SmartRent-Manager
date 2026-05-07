@@ -17,7 +17,6 @@ const drawDashboard = () => {
   const formatKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const labels = trend.map(row => row.month_key);
-  const expected = trend.map(row => row.expected);
   const paid = trend.map(row => row.paid);
   
   const incomeTrendCanvas = document.getElementById('incomeTrend');
@@ -43,60 +42,8 @@ const drawDashboard = () => {
               afterBody: items => {
                 if (!items.length) return '';
                 const idx = items[0].dataIndex;
-                const row = m[idx] || { expected: 0, paid: 0, outstanding: 0 };
-                return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`, `Outstanding: ${formatKsh(row.outstanding)}`];
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  const sparklineCanvas = document.getElementById('collectionSparkline');
-  if (sparklineCanvas) {
-    new Chart(sparklineCanvas, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{ data: paid, borderColor: '#198754', tension: 0.35, pointRadius: 0, fill: false }]
-      },
-      options: {
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
-        scales: { x: { display: false }, y: { display: false } },
-        elements: { line: { borderWidth: 2 } }
-      }
-    });
-  }
-
-  const expectedVsPaidCanvas = document.getElementById('expectedVsPaid');
-  if (expectedVsPaidCanvas) {
-    new Chart(expectedVsPaidCanvas, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          { label: 'Expected (KSH)', data: expected, backgroundColor: '#93c5fd' },
-          { label: 'Paid (KSH)', data: paid, backgroundColor: '#198754' }
-        ]
-      },
-      options: {
-        scales: {
-          y: {
-            ticks: {
-              callback: value => formatKsh(value)
-            }
-          }
-        },
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`,
-              afterBody: items => {
-                if (!items.length) return '';
-                const idx = items[0].dataIndex;
-                const row = m[idx] || { expected: 0, paid: 0, outstanding: 0 };
-                return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`, `Outstanding: ${formatKsh(row.outstanding)}`];
+                const row = trend[idx] || { expected: 0, paid: 0 };
+                return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`];
               }
             }
           }
