@@ -11,6 +11,10 @@ requireAuth();
 $year = (int) ($_GET['year'] ?? date('Y'));
 $selectedMonthInput = (string) ($_GET['month'] ?? sprintf('%04d-%02d', $year, (int) date('n')));
 $selectedMonth = $selectedMonthInput === 'all' ? 'all' : date('Y-m', strtotime($selectedMonthInput));
+$selectedMonthYear = $selectedMonth !== 'all' ? (int) substr($selectedMonth, 0, 4) : $year;
+if ($selectedMonth !== 'all' && $selectedMonthYear !== $year) {
+    $selectedMonth = sprintf('%04d-01', $year);
+}
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
 $currentMonth = date('Y-m');
@@ -127,34 +131,34 @@ renderHeader('Budget');
 <section class="cards metrics-general">
     <article class="card metric metric-general">
         <span class="metric-label">Annual Budget:</span>
-        <strong><span id="totalYtdBudgetCard" class="card-value"><?= formatKsh($totalYtdBudget) ?></span></strong>
+        <strong><span id="totalYtdBudgetCard" class="card-value calculable-card"><?= formatKsh($totalYtdBudget) ?></span></strong>
     </article>
     <article class="card metric metric-general">
         <span class="metric-label">Annual Collected:</span>
-        <strong><span id="totalYtdCollectionCard" class="card-value"><?= formatKsh($totalPaid) ?></span></strong>
+        <strong><span id="totalYtdCollectionCard" class="card-value calculable-card"><?= formatKsh($totalPaid) ?></span></strong>
     </article>
     <article class="card metric metric-general">
         <span class="metric-label">Annual Arrears:</span>
-        <strong><span id="totalYtdArrearsCard" class="card-value"><?= formatKsh($totalOutstanding) ?></span></strong>
+        <strong><span id="totalYtdArrearsCard" class="card-value calculable-card"><?= formatKsh($totalOutstanding) ?></span></strong>
     </article>
 </section>
 <p class="budget-ytd-note">Annual totals reflect the full selected year from imported Excel records and do not change with period filters.</p>
 
 <section class="card selected-period-title">
-    <h3 id="analysisPeriodHeadline"><?= h($periodHeadline) ?></h3>
+    <h3 id="analysisPeriodHeadline" class="calculable-card"><?= h($periodHeadline) ?></h3>
 </section>
 <section class="cards metrics-selected">
     <article class="card metric metric-selected">
         <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Budget:' : 'Month Budget:' ?></span>
-        <strong><span class="card-value"><?= formatKsh($periodExpected) ?></span></strong>
+        <strong><span class="card-value calculable-card"><?= formatKsh($periodExpected) ?></span></strong>
     </article>
     <article class="card metric metric-selected">
         <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Collected:' : 'Month Collected:' ?></span>
-        <strong><span class="card-value"><?= formatKsh($periodPaid) ?></span></strong>
+        <strong><span class="card-value calculable-card"><?= formatKsh($periodPaid) ?></span></strong>
     </article>
     <article class="card metric metric-selected <?= $varianceBadgeClass === 'paid' ? 'paid' : 'unpaid' ?>">
         <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Variance:' : 'Month Variance:' ?></span>
-        <strong><span class="card-value <?= $varianceAmount < 0 ? 'negative-financial' : '' ?>"><?= formatKsh($varianceAmount) ?></span></strong>
+        <strong><span class="card-value calculable-card <?= $varianceAmount < 0 ? 'negative-financial' : '' ?>"><?= formatKsh($varianceAmount) ?></span></strong>
         <span class="badge <?= h($varianceBadgeClass) ?>"><?= number_format($variancePercent, 2) ?>%</span>
     </article>
 </section>
