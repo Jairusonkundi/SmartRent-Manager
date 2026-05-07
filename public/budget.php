@@ -9,13 +9,14 @@ require_once __DIR__ . '/../modules/BudgetService.php';
 
 requireAuth();
 $year = (int) ($_GET['year'] ?? date('Y'));
-$selectedMonth = date('Y-m', strtotime((string) ($_GET['month'] ?? date('Y-m'))));
+$selectedMonthInput = (string) ($_GET['month'] ?? 'all');
+$selectedMonth = $selectedMonthInput === 'all' ? 'all' : date('Y-m', strtotime($selectedMonthInput));
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
 $currentMonth = date('Y-m');
 $currentYear = (int) date('Y');
 $currentQuarter = (int) ceil(((int) date('n')) / 3);
-$isFuturePeriod = $selectedMonth > $currentMonth;
+$isFuturePeriod = $selectedMonth !== 'all' && $selectedMonth > $currentMonth;
 $futureBillingStartDate = $isFuturePeriod ? date('F j, Y', strtotime($selectedMonth . '-01')) : null;
 
 $service = new BudgetService();
@@ -24,22 +25,27 @@ $monthly = $budgetData['monthly'];
 $quarterly = $budgetData['quarterly'];
 $quarterlyYoY = $service->quarterlyYearOverYear($year);
 
-$selectedDate = new DateTimeImmutable($selectedMonth . '-01');
-$selectedQuarter = (int) ceil(((int) $selectedDate->format('n')) / 3);
-$periodHeadline = $view === 'quarterly'
-    ? sprintf('Q%d %s Analysis', $selectedQuarter, $selectedDate->format('Y'))
-    : $selectedDate->format('F Y') . ' Performance';
-
-$periodStart = $selectedMonth;
-$periodEnd = $selectedMonth;
-if ($view === 'quarterly') {
-    $quarterStartMonth = (($selectedQuarter - 1) * 3) + 1;
-    $periodStart = $selectedDate->setDate((int) $selectedDate->format('Y'), $quarterStartMonth, 1)->format('Y-m');
-    $periodEnd = $selectedDate->setDate((int) $selectedDate->format('Y'), $quarterStartMonth + 2, 1)->format('Y-m');
+$selectedDate = new DateTimeImmutable(sprintf('%04d-%02d-01', $year, 1));
+if ($selectedMonth !== 'all') {
+    $selectedDate = new DateTimeImmutable($selectedMonth . '-01');
 }
-$periodEnd = min($periodEnd, $currentMonth);
-if ($periodStart > $currentMonth) {
-    $periodStart = $currentMonth;
+$selectedQuarter = (int) ceil(((int) $selectedDate->format('n')) / 3);
+$periodHeadline = $selectedMonth === 'all'
+    ? sprintf('%d Full Year Performance', $year)
+    : ($view === 'quarterly'
+        ? sprintf('Q%d %s Analysis', $selectedQuarter, $selectedDate->format('Y'))
+        : $selectedDate->format('F Y') . ' Performance');
+
+$periodStart = sprintf('%04d-01', $year);
+$periodEnd = sprintf('%04d-12', $year);
+if ($selectedMonth !== 'all') {
+    $periodStart = $selectedMonth;
+    $periodEnd = $selectedMonth;
+    if ($view === 'quarterly') {
+        $quarterStartMonth = (($selectedQuarter - 1) * 3) + 1;
+        $periodStart = $selectedDate->setDate((int) $selectedDate->format('Y'), $quarterStartMonth, 1)->format('Y-m');
+        $periodEnd = $selectedDate->setDate((int) $selectedDate->format('Y'), $quarterStartMonth + 2, 1)->format('Y-m');
+    }
 }
 
 $periodTotals = $service->periodTotals($periodStart, $periodEnd);
@@ -87,7 +93,13 @@ renderHeader('Budget');
             </select>
         </label>
         <label>Reference Month
-            <input type="month" name="month" value="<?= h($selectedMonth) ?>">
+            <select name="month">
+                <option value="all" <?= $selectedMonth === 'all' ? 'selected' : '' ?>>All Months</option>
+                <?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?>
+                    <?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?>
+                    <option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option>
+                <?php endfor; ?>
+            </select>
         </label>
         <div class="control-actions">
             <button type="submit">Search</button>
@@ -109,19 +121,19 @@ renderHeader('Budget');
 
 <section class="cards metrics-general">
     <article class="card metric metric-general">
-        <span class="metric-label">Total YTD Budget:</span>
+        <span class="metric-label">Total Budgeted:</span>
         <strong><span id="totalYtdBudgetCard" class="card-value"><?= formatKsh($totalYtdBudget) ?></span></strong>
     </article>
     <article class="card metric metric-general">
-        <span class="metric-label">Total YTD Collection:</span>
+        <span class="metric-label">Total Collected:</span>
         <strong><span id="totalYtdCollectionCard" class="card-value"><?= formatKsh($totalPaid) ?></span></strong>
     </article>
     <article class="card metric metric-general">
-        <span class="metric-label">Total YTD Arrears:</span>
+        <span class="metric-label">Total Outstanding:</span>
         <strong><span id="totalYtdArrearsCard" class="card-value"><?= formatKsh($totalOutstanding) ?></span></strong>
     </article>
 </section>
-<p class="budget-ytd-note">YTD reflects cumulative data from January 1st of the selected year to the current date.</p>
+<p class="budget-ytd-note">Totals reflect the cumulative data for the selected period (Year/Month) based on imported Excel records.</p>
 
 <section class="card selected-period-title">
     <h3><?= h($periodHeadline) ?></h3>
@@ -203,7 +215,7 @@ window.budgetData = {
 (function(){
     const form = document.getElementById('budgetFilters');
     if (!form) return;
-    const controls = form.querySelectorAll('input[name="year"], input[name="month"], select[name="view"]');
+    const controls = form.querySelectorAll('input[name="year"], select[name="month"], select[name="view"]');
     const toKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const sync = function () {
         const params = new URLSearchParams(new FormData(form));
