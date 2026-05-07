@@ -291,6 +291,14 @@ const initBudgetFilters = () => {
   if (!viewSelect || !referenceSelect || !yearInput) return;
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const showCardsLoadingState = () => {
+    document.querySelectorAll('.calculable-card').forEach(node => {
+      if (node instanceof HTMLElement) {
+        node.dataset.originalText = node.textContent || '';
+        node.textContent = 'Loading...';
+      }
+    });
+  };
 
   const renderReferenceOptions = mode => {
     const priorValue = referenceSelect.value;
@@ -327,6 +335,15 @@ const initBudgetFilters = () => {
 
   viewSelect.addEventListener('change', () => {
     renderReferenceOptions(viewSelect.value);
+  });
+
+  yearInput.addEventListener('change', () => {
+    renderReferenceOptions(viewSelect.value);
+  });
+
+  form.addEventListener('submit', () => {
+    renderReferenceOptions(viewSelect.value);
+    showCardsLoadingState();
   });
 };
 
