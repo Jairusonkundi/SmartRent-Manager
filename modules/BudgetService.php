@@ -10,16 +10,24 @@ final class BudgetService
     {
         $monthly = $this->monthlyBreakdown($year);
         $quarterly = $this->rollupQuarterly($monthly);
-        $referenceMonth = substr($referenceMonth, 0, 7);
-        if (!preg_match('/^\d{4}-\d{2}$/', $referenceMonth)) {
-            $referenceMonth = date('Y-m');
+
+        $isAllMonths = $referenceMonth === 'all';
+        if (!$isAllMonths) {
+            $referenceMonth = substr($referenceMonth, 0, 7);
+            if (!preg_match('/^\d{4}-\d{2}$/', $referenceMonth) || (int) substr($referenceMonth, 0, 4) !== $year) {
+                $referenceMonth = sprintf('%04d-01', $year);
+            }
         }
 
-        $ytdCollection = 0.0;
-        $ytdArrears = 0.0;
+        $totalCollection = 0.0;
+        $totalArrears = 0.0;
         foreach ($monthly as $row) {
             $monthKey = (string) ($row['month_key'] ?? '');
             if (substr($monthKey, 0, 4) !== (string) $year) {
+                continue;
+            }
+
+            if (!$isAllMonths && $monthKey !== $referenceMonth) {
                 continue;
             }
 
@@ -27,18 +35,16 @@ final class BudgetService
             $paid = (float) ($row['paid'] ?? 0);
             $outstanding = $expected - $paid;
 
-            if ($monthKey <= $referenceMonth) {
-                $ytdCollection += $paid;
-                $ytdArrears += $outstanding;
-            }
+            $totalCollection += $paid;
+            $totalArrears += $outstanding;
         }
 
         return [
             'monthly' => $monthly,
             'quarterly' => $quarterly,
-            'total_ytd_collection' => $ytdCollection,
-            'total_ytd_arrears' => $ytdArrears,
-            'total_ytd_budget' => $ytdCollection + $ytdArrears,
+            'total_ytd_collection' => $totalCollection,
+            'total_ytd_arrears' => $totalArrears,
+            'total_ytd_budget' => $totalCollection + $totalArrears,
         ];
     }
 
