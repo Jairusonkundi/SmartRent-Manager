@@ -17,16 +17,11 @@ const drawDashboard = () => {
   const formatKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonthIndex = now.getMonth() + 1;
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const filteredTrend = trend.filter(row => {
-    const parts = row.month_key.split('-');
-    if (parts.length !== 2) return false;
-    const rowYear = Number(parts[0]);
-    const rowMonth = Number(parts[1]);
-    if (!Number.isFinite(rowYear) || !Number.isFinite(rowMonth)) return false;
-    if (rowYear !== currentYear) return true;
-    return rowMonth <= currentMonthIndex;
+    const monthKey = String(row.month_key || '');
+    if (!/^\d{4}-\d{2}$/.test(monthKey)) return false;
+    return monthKey <= currentMonthKey;
   });
 
   const labels = filteredTrend.map(row => row.month_key);
@@ -43,8 +38,18 @@ const drawDashboard = () => {
       options: {
         scales: {
           y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(100, 116, 139, 0.22)',
+              lineWidth: 1
+            },
             ticks: {
               callback: value => formatKsh(value)
+            }
+          },
+          x: {
+            grid: {
+              display: false
             }
           }
         },
@@ -65,16 +70,32 @@ const drawDashboard = () => {
     });
   }
 
+  const distributionTotals = distribution.reduce((acc, row) => {
+    const statusValue = String(row.status || '').toLowerCase();
+    const total = Number(row.total || 0);
+    if (!Number.isFinite(total) || total < 0) return acc;
+    if (statusValue.includes('paid') && !statusValue.includes('unpaid')) {
+      acc.Paid += total;
+    } else if (statusValue.includes('partial')) {
+      acc.Partial += total;
+    } else if (statusValue.includes('unpaid') || statusValue.includes('arrears')) {
+      acc.Unpaid += total;
+    }
+    return acc;
+  }, { Paid: 0, Partial: 0, Unpaid: 0 });
+
   const statusPieCanvas = document.getElementById('statusPie');
   if (statusPieCanvas) {
     new Chart(statusPieCanvas, {
       type: 'pie',
       data: {
-        labels: distribution.map(row => row.status),
-        datasets: [{ data: distribution.map(row => Number(row.total || 0)), backgroundColor: ['#198754', '#ffc107', '#dc3545'] }]
+        labels: ['Paid', 'Partial', 'Unpaid'],
+        datasets: [{ data: [distributionTotals.Paid, distributionTotals.Partial, distributionTotals.Unpaid], backgroundColor: ['#198754', '#ffc107', '#dc3545'] }]
       },
       options: {
-        maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: true,
+        aspectRatio: 1,
         plugins: {
           legend: {
             position: 'bottom'
@@ -134,8 +155,18 @@ const drawBudget = () => {
       options: {
         scales: {
           y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(100, 116, 139, 0.22)',
+              lineWidth: 1
+            },
             ticks: {
               callback: value => formatKsh(value)
+            }
+          },
+          x: {
+            grid: {
+              display: false
             }
           }
         },
@@ -171,8 +202,18 @@ const drawBudget = () => {
       options: {
         scales: {
           y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(100, 116, 139, 0.22)',
+              lineWidth: 1
+            },
             ticks: {
               callback: value => formatKsh(value)
+            }
+          },
+          x: {
+            grid: {
+              display: false
             }
           }
         },

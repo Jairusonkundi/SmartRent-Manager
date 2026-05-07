@@ -193,7 +193,7 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
     <div class="data-management-card">
         <h4>Data Management</h4>
         <p>Download the currently imported data for offline accounting edits and re-upload when ready.</p>
-        <a class="button-link" href="/public/download_data.php">Download Current Data (CSV/Excel)</a>
+        <a class="button-link" href="/public/download_data.php">Download Source File (CSV/Excel)</a>
     </div>
     <?php if ($latestImports === []): ?>
         <p class="muted-text">No import activity has been recorded yet.</p>

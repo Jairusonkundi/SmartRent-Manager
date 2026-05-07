@@ -350,7 +350,7 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .reference-month-field {
-  max-width: 140px;
+  max-width: none;
 }
 
 .button-secondary {
@@ -365,7 +365,7 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .latest-imports-card {
-  max-width: 420px;
+  max-width: 100%;
 }
 
 .latest-import-list {
@@ -612,16 +612,16 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .budget-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(140px, 1fr) minmax(170px, 1.2fr) minmax(230px, 1.6fr) minmax(240px, 1.4fr);
+  align-items: end;
+  gap: 18px;
+  width: 100%;
 }
 
 .budget-filter-row > label {
-  flex: 1 1 220px;
-  max-width: 260px;
+  min-width: 0;
+  max-width: none;
   font-size: 1rem;
   font-weight: 600;
 }
@@ -629,18 +629,19 @@ th { cursor: pointer; background: #f9fafb; }
 .budget-filter-row select,
 .budget-filter-row input {
   width: 100%;
-  min-height: 44px;
+  min-height: 46px;
   font-size: 1rem;
 }
 
 .budget-filter-row .control-actions {
-  margin-left: auto;
+  margin-left: 0;
   justify-content: flex-end;
+  align-self: end;
 }
 
 .budget-filter-row .control-actions button {
-  min-width: 120px;
-  min-height: 44px;
+  min-width: 124px;
+  min-height: 46px;
   font-size: 1rem;
 }
 
@@ -660,7 +661,7 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .dashboard-charts-grid {
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(420px, 1fr);
   align-items: stretch;
 }
 
@@ -669,11 +670,16 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .compact-pie-card {
-  min-height: 420px;
+  min-height: 460px;
+  display: flex;
+  flex-direction: column;
 }
 
 .compact-pie-card canvas {
-  min-height: 320px;
+  width: min(100%, 360px) !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1;
+  margin: 8px auto 0;
 }
 
 .data-management-card {
