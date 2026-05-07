@@ -179,17 +179,22 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <?php endif; ?>
 <?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?><section class="card"><p>Data for this period is projected. Official billing starts on <?= h($futureBillingStartDate) ?>.</p></section><?php endif; ?>
 <section class="cards dashboard-kpi-grid">
+    <article class="card metric paid accountant-priority"><span class="metric-label">Collection Efficiency:</span><strong><span class="card-value"><?= number_format($collectionEfficiency, 2) ?>%</span></strong></article>
+    <article class="card metric unpaid accountant-priority"><span class="metric-label">Accounts Receivable:</span><strong><span class="card-value">KSh <?= number_format($accountsReceivable, 2) ?></span></strong></article>
     <article class="card metric occupancy-widget"><span class="metric-label">Occupancy Rate:</span><strong><span class="card-value"><?= number_format($occupancyRate, 2) ?>% Occupancy (<?= $occupiedUnits ?>/<?= $totalUnits ?>)</span></strong></article>
-    <article class="card metric paid"><span class="metric-label">Collection Efficiency:</span><strong><span class="card-value"><?= number_format($collectionEfficiency, 2) ?>%</span></strong></article>
     <article class="card metric unpaid"><span class="metric-label">Late Payment Alert (&gt; 10th):</span><strong><span class="card-value"><?= $latePaymentAlert ?></span></strong></article>
-    <article class="card metric unpaid"><span class="metric-label">Accounts Receivable:</span><strong><span class="card-value">KSh <?= number_format($accountsReceivable, 2) ?></span></strong></article>
 </section>
 <section class="charts-grid dashboard-charts-grid">
-    <article class="card"><h3>Revenue Trend (12 Months)</h3><canvas id="incomeTrend"></canvas></article>
+    <article class="card"><h3>Revenue Trend (Year-to-Date)</h3><canvas id="incomeTrend"></canvas></article>
     <article class="card compact-pie-card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
 </section>
 <section class="card latest-imports-card">
-    <h3>Latest Excel Imports</h3>
+    <h3>Latest Activity</h3>
+    <div class="data-management-card">
+        <h4>Data Management</h4>
+        <p>Download the currently imported data for offline accounting edits and re-upload when ready.</p>
+        <a class="button-link" href="/public/download_data.php">Download Current Data (CSV/Excel)</a>
+    </div>
     <?php if ($latestImports === []): ?>
         <p class="muted-text">No import activity has been recorded yet.</p>
     <?php else: ?>
