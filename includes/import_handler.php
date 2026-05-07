@@ -116,6 +116,9 @@ $insertPayment = $pdo->prepare(
     'INSERT INTO payments (tenant_id, billing_month, amount_expected, monthly_rent, amount_paid, payment_date, month, collection_status, payment_status, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
+$insertImportLog = $pdo->prepare(
+    'INSERT INTO import_logs (source_file, records_processed) VALUES (?, ?)'
+);
 
 try {
     $pdo->beginTransaction();
@@ -192,6 +195,9 @@ try {
 
         $processed++;
     }
+
+    $sourceFile = (string) ($_FILES['csv_file']['name'] ?? 'uploaded-file.csv');
+    $insertImportLog->execute([$sourceFile, $processed]);
 
     $pdo->commit();
 } catch (Throwable $exception) {

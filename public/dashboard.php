@@ -114,6 +114,39 @@ $distributionStmt = $pdo->prepare(
 $distributionStmt->execute(array_merge([$periodStart, $periodEnd], $propertyParams));
 $distribution = $distributionStmt->fetchAll() ?: [];
 
+$latestImports = [];
+try {
+    $latestImports = $pdo->query(
+        "SELECT created_at, records_processed
+         FROM import_logs
+         ORDER BY created_at DESC
+         LIMIT 5"
+    )->fetchAll() ?: [];
+} catch (Throwable $exception) {
+    $latestImports = [];
+}
+
+$latestBillingMonth = $pdo->query('SELECT MAX(billing_month) FROM payments')->fetchColumn();
+$missingTenantDataCount = 0;
+if (is_string($latestBillingMonth) && $latestBillingMonth !== '') {
+    $missingTenantStmt = $pdo->prepare(
+        "SELECT COUNT(DISTINCT t.id)
+         FROM tenants t
+         LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
+         LEFT JOIN units u ON u.id = l.unit_id
+         LEFT JOIN properties pr ON pr.id = u.property_id
+         WHERE t.status = 'active'
+           AND NOT EXISTS (
+               SELECT 1
+               FROM payments p
+               WHERE p.tenant_id = t.id
+                 AND p.billing_month = ?
+           ){$propertyWhere}"
+    );
+    $missingTenantStmt->execute(array_merge([$latestBillingMonth], $propertyParams));
+    $missingTenantDataCount = (int) ($missingTenantStmt->fetchColumn() ?: 0);
+}
+
 renderHeader('Dashboard');
 $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 ?>
@@ -130,12 +163,20 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
         <label>View
             <select name="view"><option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option><option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option></select>
         </label>
-        <label>Reference
-            <select name="month"><?php if ($view === 'quarterly'): ?><?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?><?php $quarterMonthKey = sprintf('%04d-%02d', $year, (($quarterNumber - 1) * 3) + 1); ?><option value="<?= h($quarterMonthKey) ?>" <?= $selectedMonth === $quarterMonthKey ? 'selected' : '' ?>>Q<?= $quarterNumber ?></option><?php endfor; ?><?php else: ?><?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?><?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?><option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option><?php endfor; ?><?php endif; ?></select>
+        <label class="reference-month-field">Reference Month
+            <select name="month"><?php if ($view === 'quarterly'): ?><?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?><?php $quarterMonthKey = sprintf('%04d-%02d', $year, (($quarterNumber - 1) * 3) + 1); ?><option value="<?= h($quarterMonthKey) ?>" <?= $selectedMonth === $quarterMonthKey ? 'selected' : '' ?>>Q<?= $quarterNumber ?></option><?php endfor; ?><?php else: ?><?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?><?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?><option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('M', strtotime($monthKey . '-01'))) ?></option><?php endfor; ?><?php endif; ?></select>
         </label>
-        <div class="control-actions"><button type="submit">Search</button></div>
+        <div class="control-actions">
+            <button type="submit">Search</button>
+            <button type="button" class="button button-secondary" onclick="window.location.href='/public/dashboard.php';">Reset</button>
+        </div>
     </form>
 </section>
+<?php if ($missingTenantDataCount > 0): ?>
+<section class="card subtle-alert-card">
+    <strong>Missing Tenant Data:</strong> <?= $missingTenantDataCount ?> active tenant(s) were not found in the latest import month (<?= h((string) $latestBillingMonth) ?>).
+</section>
+<?php endif; ?>
 <?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?><section class="card"><p>Data for this period is projected. Official billing starts on <?= h($futureBillingStartDate) ?>.</p></section><?php endif; ?>
 <section class="cards dashboard-kpi-grid">
     <article class="card metric occupancy-widget"><span class="metric-label">Occupancy Rate:</span><strong><span class="card-value"><?= number_format($occupancyRate, 2) ?>% Occupancy (<?= $occupiedUnits ?>/<?= $totalUnits ?>)</span></strong></article>
@@ -146,6 +187,21 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <section class="charts-grid dashboard-charts-grid">
     <article class="card"><h3>Revenue Trend (12 Months)</h3><canvas id="incomeTrend"></canvas></article>
     <article class="card compact-pie-card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
+</section>
+<section class="card latest-imports-card">
+    <h3>Latest Excel Imports</h3>
+    <?php if ($latestImports === []): ?>
+        <p class="muted-text">No import activity has been recorded yet.</p>
+    <?php else: ?>
+        <ul class="latest-import-list">
+            <?php foreach ($latestImports as $importLog): ?>
+                <li>
+                    <span><?= h(date('M j, Y g:i A', strtotime((string) $importLog['created_at']))) ?></span>
+                    <strong><?= number_format((int) ($importLog['records_processed'] ?? 0)) ?> records</strong>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    <?php endif; ?>
 </section>
 <script>
 window.dashboardData = { trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>, distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?> };
