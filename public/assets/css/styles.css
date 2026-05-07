@@ -460,3 +460,16 @@ th { cursor: pointer; background: #f9fafb; }
 .tenant-ledger-detail-table {
   background: #fff;
 }
+
+.budget-monthly-breakdown th,
+.budget-monthly-breakdown td,
+#quarterlyComparisonTable th,
+#quarterlyComparisonTable td {
+  padding: 8px 9px;
+  font-size: .9rem;
+}
+
+#projectedFutureRentHint {
+  color: #cbd5e1;
+  font-size: .78rem;
+}

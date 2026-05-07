@@ -39,7 +39,13 @@ const drawDashboard = () => {
         plugins: {
           tooltip: {
             callbacks: {
-              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`
+              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`,
+              afterBody: items => {
+                if (!items.length) return '';
+                const idx = items[0].dataIndex;
+                const row = m[idx] || { expected: 0, paid: 0, outstanding: 0 };
+                return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`, `Outstanding: ${formatKsh(row.outstanding)}`];
+              }
             }
           }
         }
@@ -85,7 +91,13 @@ const drawDashboard = () => {
         plugins: {
           tooltip: {
             callbacks: {
-              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`
+              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`,
+              afterBody: items => {
+                if (!items.length) return '';
+                const idx = items[0].dataIndex;
+                const row = m[idx] || { expected: 0, paid: 0, outstanding: 0 };
+                return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`, `Outstanding: ${formatKsh(row.outstanding)}`];
+              }
             }
           }
         }
@@ -104,6 +116,9 @@ const drawDashboard = () => {
     });
   }
 };
+
+let monthlyBudgetChart = null;
+let quarterlyBudgetChart = null;
 
 const drawBudget = () => {
   if (!window.budgetData || typeof Chart === 'undefined') return;
@@ -137,7 +152,8 @@ const drawBudget = () => {
 
   const monthlyCanvas = document.getElementById('monthlyBudget');
   if (monthlyCanvas) {
-    new Chart(monthlyCanvas, {
+    if (monthlyBudgetChart) monthlyBudgetChart.destroy();
+    monthlyBudgetChart = new Chart(monthlyCanvas, {
       type: 'bar',
       data: {
         labels: m.map(x => x.month_key),
@@ -158,7 +174,13 @@ const drawBudget = () => {
         plugins: {
           tooltip: {
             callbacks: {
-              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`
+              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`,
+              afterBody: items => {
+                if (!items.length) return '';
+                const idx = items[0].dataIndex;
+                const row = m[idx] || { expected: 0, paid: 0, outstanding: 0 };
+                return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`, `Outstanding: ${formatKsh(row.outstanding)}`];
+              }
             }
           }
         }
@@ -168,7 +190,8 @@ const drawBudget = () => {
 
   const quarterlyCanvas = document.getElementById('quarterlyBudget');
   if (quarterlyCanvas) {
-    new Chart(quarterlyCanvas, {
+    if (quarterlyBudgetChart) quarterlyBudgetChart.destroy();
+    quarterlyBudgetChart = new Chart(quarterlyCanvas, {
       type: 'line',
       data: {
         labels: q.map(x => x.quarter_label),
@@ -188,7 +211,14 @@ const drawBudget = () => {
         plugins: {
           tooltip: {
             callbacks: {
-              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`
+              label: context => `${context.dataset.label}: ${formatKsh(context.parsed.y)}`,
+              afterBody: items => {
+                if (!items.length) return '';
+                const idx = items[0].dataIndex;
+                const row = q[idx] || { expected: 0, paid: 0 };
+                const outstanding = Number(row.expected || 0) - Number(row.paid || 0);
+                return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`, `Outstanding: ${formatKsh(outstanding)}`];
+              }
             }
           }
         }
@@ -248,6 +278,8 @@ const addLoadingStates = () => {
     });
   });
 };
+
+window.renderBudgetDashboard = drawBudget;
 
 document.addEventListener('DOMContentLoaded', () => {
   drawDashboard();
