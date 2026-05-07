@@ -726,9 +726,9 @@ th { cursor: pointer; background: #f9fafb; }
 .data-management-card {
   margin: 12px 0 16px;
   padding: 14px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid #d1d5db;
   border-radius: 10px;
-  background: #f8fbff;
+  background: #f9fafb;
 }
 
 .dashboard-download-card {
@@ -738,6 +738,11 @@ th { cursor: pointer; background: #f9fafb; }
 .data-management-card h4 {
   margin: 0 0 10px;
   font-size: 1rem;
+  font-weight: 700;
+}
+
+.inline-upload-form {
+  margin: 0;
 }
 
 @media (max-width: 960px) {

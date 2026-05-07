@@ -36,7 +36,29 @@ if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_O
     $respond('error', 'Please select a valid CSV file to upload.', '/public/upload_csv.php');
 }
 
-$csvPath = $_FILES['csv_file']['tmp_name'];
+$originalFileName = (string) ($_FILES['csv_file']['name'] ?? 'uploaded-file.csv');
+$storageDir = __DIR__ . '/../storage/raw_uploads';
+if (!is_dir($storageDir) && !mkdir($storageDir, 0775, true) && !is_dir($storageDir)) {
+    $respond('error', 'Unable to prepare upload storage.', '/public/upload_csv.php');
+}
+$safeOriginalFileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($originalFileName)) ?: 'uploaded-file.csv';
+$rawUploadPath = $storageDir . '/latest-upload.csv';
+$rawUploadMetaPath = $storageDir . '/latest-upload.json';
+if (!move_uploaded_file($_FILES['csv_file']['tmp_name'], $rawUploadPath)) {
+    $respond('error', 'Unable to store the uploaded file.', '/public/upload_csv.php');
+}
+file_put_contents(
+    $rawUploadMetaPath,
+    json_encode(
+        [
+            'original_name' => $safeOriginalFileName,
+            'uploaded_at' => date(DATE_ATOM),
+        ],
+        JSON_THROW_ON_ERROR
+    )
+);
+
+$csvPath = $rawUploadPath;
 $handle = fopen($csvPath, 'rb');
 
 if ($handle === false) {
@@ -196,8 +218,7 @@ try {
         $processed++;
     }
 
-    $sourceFile = (string) ($_FILES['csv_file']['name'] ?? 'uploaded-file.csv');
-    $insertImportLog->execute([$sourceFile, $processed]);
+    $insertImportLog->execute([$safeOriginalFileName, $processed]);
 
     $pdo->commit();
 } catch (Throwable $exception) {
