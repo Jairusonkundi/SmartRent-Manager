@@ -16,9 +16,22 @@ const drawDashboard = () => {
   const distribution = Array.isArray(window.dashboardData.distribution) ? window.dashboardData.distribution : [];
   const formatKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const labels = trend.map(row => row.month_key);
-  const paid = trend.map(row => row.paid);
-  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthIndex = now.getMonth() + 1;
+  const filteredTrend = trend.filter(row => {
+    const parts = row.month_key.split('-');
+    if (parts.length !== 2) return false;
+    const rowYear = Number(parts[0]);
+    const rowMonth = Number(parts[1]);
+    if (!Number.isFinite(rowYear) || !Number.isFinite(rowMonth)) return false;
+    if (rowYear !== currentYear) return true;
+    return rowMonth <= currentMonthIndex;
+  });
+
+  const labels = filteredTrend.map(row => row.month_key);
+  const paid = filteredTrend.map(row => row.paid);
+
   const incomeTrendCanvas = document.getElementById('incomeTrend');
   if (incomeTrendCanvas) {
     new Chart(incomeTrendCanvas, {
@@ -42,7 +55,7 @@ const drawDashboard = () => {
               afterBody: items => {
                 if (!items.length) return '';
                 const idx = items[0].dataIndex;
-                const row = trend[idx] || { expected: 0, paid: 0 };
+                const row = filteredTrend[idx] || { expected: 0, paid: 0 };
                 return [`Expected: ${formatKsh(row.expected)}`, `Paid: ${formatKsh(row.paid)}`];
               }
             }

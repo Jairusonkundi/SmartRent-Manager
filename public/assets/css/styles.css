@@ -610,3 +610,90 @@ th { cursor: pointer; background: #f9fafb; }
   color: var(--muted);
   font-size: .86rem;
 }
+
+.budget-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.budget-filter-row > label {
+  flex: 1 1 220px;
+  max-width: 260px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.budget-filter-row select,
+.budget-filter-row input {
+  width: 100%;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.budget-filter-row .control-actions {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.budget-filter-row .control-actions button {
+  min-width: 120px;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.dashboard-kpi-grid .accountant-priority {
+  border-width: 6px;
+  box-shadow: 0 10px 24px rgba(11, 99, 206, 0.14);
+}
+
+.dashboard-kpi-grid .accountant-priority .metric-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.dashboard-kpi-grid .accountant-priority strong {
+  font-size: 1.9rem;
+}
+
+.dashboard-charts-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  align-items: stretch;
+}
+
+.dashboard-charts-grid .card h3 {
+  font-size: 1.2rem;
+}
+
+.compact-pie-card {
+  min-height: 420px;
+}
+
+.compact-pie-card canvas {
+  min-height: 320px;
+}
+
+.data-management-card {
+  margin: 12px 0 16px;
+  padding: 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.data-management-card h4 {
+  margin: 0 0 8px;
+}
+
+@media (max-width: 960px) {
+  .dashboard-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-filter-row > label {
+    max-width: none;
+  }
+}
