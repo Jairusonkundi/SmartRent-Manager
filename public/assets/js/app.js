@@ -49,7 +49,9 @@ const drawDashboard = () => {
           },
           x: {
             grid: {
-              display: false
+              display: true,
+              color: 'rgba(100, 116, 139, 0.22)',
+              lineWidth: 1
             }
           }
         },
@@ -99,6 +101,11 @@ const drawDashboard = () => {
         plugins: {
           legend: {
             position: 'bottom'
+          },
+          tooltip: {
+            callbacks: {
+              label: context => `${context.label}: ${context.parsed} Tenant${context.parsed === 1 ? '' : 's'}`
+            }
           }
         }
       }
@@ -166,7 +173,9 @@ const drawBudget = () => {
           },
           x: {
             grid: {
-              display: false
+              display: true,
+              color: 'rgba(100, 116, 139, 0.22)',
+              lineWidth: 1
             }
           }
         },
@@ -213,7 +222,9 @@ const drawBudget = () => {
           },
           x: {
             grid: {
-              display: false
+              display: true,
+              color: 'rgba(100, 116, 139, 0.22)',
+              lineWidth: 1
             }
           }
         },

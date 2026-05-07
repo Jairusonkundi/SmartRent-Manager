@@ -10,15 +10,43 @@ requireAuth();
 $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
-$stmt = $pdo->query(
-    'SELECT p.billing_month, pr.name AS property_name, u.unit_number, t.name AS tenant_name, p.amount_expected, p.amount_paid, p.payment_date, p.collection_status
+$year = (int) ($_GET['year'] ?? date('Y'));
+$selectedMonthInput = (string) ($_GET['month'] ?? sprintf('%04d-%02d', $year, (int) date('n')));
+$selectedMonth = sprintf('%04d-%02d', $year, (int) date('n'));
+if (preg_match('/^(\d{4})-(\d{2})$/', $selectedMonthInput, $matches) === 1) {
+    $candidateYear = (int) $matches[1];
+    $candidateMonth = (int) $matches[2];
+    if ($candidateYear === $year && $candidateMonth >= 1 && $candidateMonth <= 12) {
+        $selectedMonth = sprintf('%04d-%02d', $candidateYear, $candidateMonth);
+    }
+}
+$view = (string) ($_GET['view'] ?? 'monthly');
+$view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
+$propertyFilter = (string) ($_GET['property_id'] ?? 'all');
+$propertyWhere = $propertyFilter !== 'all' ? ' AND pr.id = ?' : '';
+$propertyParams = $propertyFilter !== 'all' ? [(int) $propertyFilter] : [];
+
+$periodStart = $selectedMonth;
+$periodEnd = $selectedMonth;
+if ($view === 'quarterly') {
+    $baseDate = new DateTimeImmutable($selectedMonth . '-01');
+    $quarter = (int) ceil(((int) $baseDate->format('n')) / 3);
+    $quarterStartMonth = (($quarter - 1) * 3) + 1;
+    $periodStart = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth, 1)->format('Y-m');
+    $periodEnd = $baseDate->setDate((int) $baseDate->format('Y'), $quarterStartMonth + 2, 1)->format('Y-m');
+}
+
+$stmt = $pdo->prepare(
+    "SELECT p.billing_month, pr.name AS property_name, u.unit_number, t.name AS tenant_name, p.amount_expected, p.amount_paid, p.payment_date, p.collection_status
      FROM payments p
      LEFT JOIN tenants t ON t.id = p.tenant_id
-     LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = "active"
+     LEFT JOIN leases l ON l.tenant_id = t.id AND l.status = 'active'
      LEFT JOIN units u ON u.id = l.unit_id
      LEFT JOIN properties pr ON pr.id = u.property_id
-     ORDER BY p.billing_month DESC, pr.name ASC, u.unit_number ASC, t.name ASC'
+     WHERE p.billing_month >= ? AND p.billing_month <= ?{$propertyWhere}
+     ORDER BY p.billing_month DESC, pr.name ASC, u.unit_number ASC, t.name ASC"
 );
+$stmt->execute(array_merge([$periodStart, $periodEnd], $propertyParams));
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $filename = 'smartrent-current-data-' . date('Y-m-d') . '.csv';
