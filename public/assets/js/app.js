@@ -291,6 +291,7 @@ const initBudgetFilters = () => {
   if (!viewSelect || !referenceSelect || !yearInput) return;
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const formatKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const showCardsLoadingState = () => {
     document.querySelectorAll('.calculable-card').forEach(node => {
       if (node instanceof HTMLElement) {
@@ -347,6 +348,71 @@ const initBudgetFilters = () => {
   form.addEventListener('submit', () => {
     renderReferenceOptions(viewSelect.value);
     showCardsLoadingState();
+  });
+
+  const updateAnalysisCards = () => {
+    if (!window.budgetData) return;
+    const selectedYear = Number(window.budgetData.selectedYear || yearInput.value || new Date().getFullYear());
+    const selectedMonth = String(window.budgetData.selectedMonth || `${selectedYear}-01`);
+    const selectedView = String(window.budgetData.selectedView || viewSelect.value || 'monthly');
+    const selectedMonthIndex = Math.min(11, Math.max(0, Number(selectedMonth.split('-')[1] || 1) - 1));
+    const selectedMonthName = monthNames[selectedMonthIndex];
+    const selectedQuarter = Math.ceil((selectedMonthIndex + 1) / 3);
+    const referenceText = selectedView === 'quarterly' ? `Q${selectedQuarter}` : selectedMonthName;
+    const headline = document.getElementById('analysisPeriodHeadline');
+    if (headline) headline.textContent = `Analysis for ${referenceText} ${selectedYear}`;
+
+    const monthly = Array.isArray(window.budgetData.monthly) ? window.budgetData.monthly : [];
+    const quarterMap = { Q1: [0, 1, 2], Q2: [3, 4, 5], Q3: [6, 7, 8], Q4: [9, 10, 11] };
+    const selectedRows = selectedView === 'quarterly'
+      ? (quarterMap[`Q${selectedQuarter}`] || []).map(i => monthly[i]).filter(Boolean)
+      : monthly.filter(row => String(row.month_key || '') === selectedMonth);
+    const expected = selectedRows.reduce((sum, row) => sum + Number(row.expected || 0), 0);
+    const paid = selectedRows.reduce((sum, row) => sum + Number(row.paid || 0), 0);
+    const variance = paid - expected;
+    const variancePercent = expected > 0 ? (variance / expected) * 100 : 0;
+
+    const budgetLabel = document.getElementById('analysisBudgetLabel');
+    const collectedLabel = document.getElementById('analysisCollectedLabel');
+    const varianceLabel = document.getElementById('analysisVarianceLabel');
+    if (budgetLabel) budgetLabel.textContent = selectedView === 'quarterly' ? 'Quarter Budget:' : 'Month Budget:';
+    if (collectedLabel) collectedLabel.textContent = selectedView === 'quarterly' ? 'Quarter Collected:' : 'Month Collected:';
+    if (varianceLabel) varianceLabel.textContent = selectedView === 'quarterly' ? 'Quarter Variance:' : 'Month Variance:';
+    const budgetValue = document.getElementById('analysisBudgetValue');
+    const collectedValue = document.getElementById('analysisCollectedValue');
+    const varianceValue = document.getElementById('analysisVarianceValue');
+    if (budgetValue) budgetValue.textContent = formatKsh(expected);
+    if (collectedValue) collectedValue.textContent = formatKsh(paid);
+    if (varianceValue) {
+      varianceValue.textContent = formatKsh(variance);
+      varianceValue.classList.toggle('negative-financial', variance < 0);
+    }
+    const varianceBadge = document.getElementById('analysisVarianceBadge');
+    if (varianceBadge) {
+      varianceBadge.textContent = `${variancePercent.toFixed(2)}%`;
+      varianceBadge.classList.remove('paid', 'unpaid');
+      varianceBadge.classList.add(variance >= 0 ? 'paid' : 'unpaid');
+    }
+  };
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    renderReferenceOptions(viewSelect.value);
+    showCardsLoadingState();
+    const params = new URLSearchParams(new FormData(form));
+    params.set('ajax', '1');
+    const response = await fetch(`${window.location.pathname}?${params.toString()}`);
+    const data = await response.json();
+    window.budgetData = { ...window.budgetData, ...data, selectedView: viewSelect.value, selectedMonth: referenceSelect.value };
+    const totals = window.budgetData.totals || {};
+    const totalBudgetCard = document.getElementById('totalYtdBudgetCard');
+    const totalCollectionCard = document.getElementById('totalYtdCollectionCard');
+    const totalArrearsCard = document.getElementById('totalYtdArrearsCard');
+    if (totalBudgetCard) totalBudgetCard.textContent = formatKsh(totals.totalYtdBudget || 0);
+    if (totalCollectionCard) totalCollectionCard.textContent = formatKsh(totals.totalYtdCollection || 0);
+    if (totalArrearsCard) totalArrearsCard.textContent = formatKsh(totals.totalYtdArrears || 0);
+    updateAnalysisCards();
+    drawBudget();
   });
 };
 

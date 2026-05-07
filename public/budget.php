@@ -147,24 +147,24 @@ renderHeader('Budget');
         <strong><span id="totalYtdArrearsCard" class="card-value calculable-card"><?= formatKsh($totalOutstanding) ?></span></strong>
     </article>
 </section>
-<p class="budget-ytd-note">Totals reflect cumulative data from January 1st to the current date within the selected year.</p>
+<p class="budget-ytd-note">YTD (Year-to-Date) reflects the cumulative total of all financial records from January 1st of the selected year up to the current date.</p>
 
 <section class="card selected-period-title">
     <h3 id="analysisPeriodHeadline" class="calculable-card"><?= h($periodHeadline) ?></h3>
 </section>
 <section class="cards metrics-selected">
     <article class="card metric metric-selected">
-        <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Budget:' : 'Month Budget:' ?></span>
-        <strong><span class="card-value calculable-card"><?= formatKsh($periodExpected) ?></span></strong>
+        <span id="analysisBudgetLabel" class="metric-label"><?= $view === 'quarterly' ? 'Quarter Budget:' : 'Month Budget:' ?></span>
+        <strong><span id="analysisBudgetValue" class="card-value calculable-card"><?= formatKsh($periodExpected) ?></span></strong>
     </article>
     <article class="card metric metric-selected">
-        <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Collected:' : 'Month Collected:' ?></span>
-        <strong><span class="card-value calculable-card"><?= formatKsh($periodPaid) ?></span></strong>
+        <span id="analysisCollectedLabel" class="metric-label"><?= $view === 'quarterly' ? 'Quarter Collected:' : 'Month Collected:' ?></span>
+        <strong><span id="analysisCollectedValue" class="card-value calculable-card"><?= formatKsh($periodPaid) ?></span></strong>
     </article>
     <article class="card metric metric-selected <?= $varianceBadgeClass === 'paid' ? 'paid' : 'unpaid' ?>">
-        <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Variance:' : 'Month Variance:' ?></span>
-        <strong><span class="card-value calculable-card <?= $varianceAmount < 0 ? 'negative-financial' : '' ?>"><?= formatKsh($varianceAmount) ?></span></strong>
-        <span class="badge <?= h($varianceBadgeClass) ?>"><?= number_format($variancePercent, 2) ?>%</span>
+        <span id="analysisVarianceLabel" class="metric-label"><?= $view === 'quarterly' ? 'Quarter Variance:' : 'Month Variance:' ?></span>
+        <strong><span id="analysisVarianceValue" class="card-value calculable-card <?= $varianceAmount < 0 ? 'negative-financial' : '' ?>"><?= formatKsh($varianceAmount) ?></span></strong>
+        <span id="analysisVarianceBadge" class="badge <?= h($varianceBadgeClass) ?>"><?= number_format($variancePercent, 2) ?>%</span>
     </article>
 </section>
 <section class="card">
