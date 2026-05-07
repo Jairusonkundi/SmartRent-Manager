@@ -146,12 +146,15 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
     <h4>Data Management</h4>
     <div class="data-management-actions">
         <div class="data-management-item">
-            <a class="button-link action-upload" href="/public/upload_csv.php">UPLOAD CSV FILE</a>
-            <p>Import your monthly tenant records and payment data via a CSV template.</p>
+            <form method="post" action="/includes/import_handler.php" enctype="multipart/form-data" class="inline-upload-form">
+                <input id="dashboard_csv_file" name="csv_file" type="file" accept=".csv,text/csv" required hidden>
+                <button type="button" class="button-link action-upload" onclick="document.getElementById('dashboard_csv_file').click();">UPLOAD CSV FILE</button>
+            </form>
+            <p>Upload the raw CSV file here for the system to process and perform financial analysis.</p>
         </div>
         <div class="data-management-item">
-            <a class="button-link action-download" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">DOWNLOAD CSV FILE</a>
-            <p>Export the current filtered view of your property data for offline reporting.</p>
+            <a class="button-link action-download" href="/public/download_data.php?type=raw">DOWNLOAD CSV FILE</a>
+            <p>Download the original uploaded file to make edits or manual corrections.</p>
         </div>
     </div>
 </section>
@@ -191,5 +194,14 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 </section>
 <script>
 window.dashboardData = { trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>, distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?> };
+document.addEventListener('DOMContentLoaded', () => {
+    const csvInput = document.getElementById('dashboard_csv_file');
+    if (!csvInput) return;
+    csvInput.addEventListener('change', () => {
+        if (csvInput.files && csvInput.files.length > 0) {
+            csvInput.form?.submit();
+        }
+    });
+});
 </script>
 <?php renderFooter(); ?>

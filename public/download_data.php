@@ -10,6 +10,31 @@ requireAuth();
 $pdo = Database::connection();
 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
+$downloadType = (string) ($_GET['type'] ?? 'filtered');
+if ($downloadType === 'raw') {
+    $rawUploadPath = __DIR__ . '/../storage/raw_uploads/latest-upload.csv';
+    $rawUploadMetaPath = __DIR__ . '/../storage/raw_uploads/latest-upload.json';
+
+    if (!is_file($rawUploadPath)) {
+        http_response_code(404);
+        exit('No raw CSV file is available yet. Please upload a CSV first.');
+    }
+
+    $downloadName = 'raw-upload.csv';
+    if (is_file($rawUploadMetaPath)) {
+        $metadata = json_decode((string) file_get_contents($rawUploadMetaPath), true);
+        if (is_array($metadata) && !empty($metadata['original_name']) && is_string($metadata['original_name'])) {
+            $downloadName = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($metadata['original_name'])) ?: $downloadName;
+        }
+    }
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+    header('Content-Length: ' . (string) filesize($rawUploadPath));
+    readfile($rawUploadPath);
+    exit;
+}
+
 $year = (int) ($_GET['year'] ?? date('Y'));
 $selectedMonthInput = (string) ($_GET['month'] ?? sprintf('%04d-%02d', $year, (int) date('n')));
 $selectedMonth = sprintf('%04d-%02d', $year, (int) date('n'));
