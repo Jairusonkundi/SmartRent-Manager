@@ -13,7 +13,9 @@ const drawDashboard = () => {
         paid: Number(row.paid || 0)
       }))
     : [];
-  const distribution = Array.isArray(window.dashboardData.distribution) ? window.dashboardData.distribution : [];
+  const distribution = window.dashboardData.distribution && typeof window.dashboardData.distribution === 'object'
+    ? window.dashboardData.distribution
+    : { paid_total: 0, arrears_total: 0 };
   const formatKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const now = new Date();
@@ -72,27 +74,18 @@ const drawDashboard = () => {
     });
   }
 
-  const distributionTotals = distribution.reduce((acc, row) => {
-    const statusValue = String(row.status || '').toLowerCase();
-    const total = Number(row.total || 0);
-    if (!Number.isFinite(total) || total < 0) return acc;
-    if (statusValue.includes('paid') && !statusValue.includes('unpaid')) {
-      acc.Paid += total;
-    } else if (statusValue.includes('partial')) {
-      acc.Partial += total;
-    } else if (statusValue.includes('unpaid') || statusValue.includes('arrears')) {
-      acc.Unpaid += total;
-    }
-    return acc;
-  }, { Paid: 0, Partial: 0, Unpaid: 0 });
+  const distributionTotals = {
+    Paid: Number(distribution.paid_total || 0),
+    Arrears: Number(distribution.arrears_total || 0)
+  };
 
   const statusPieCanvas = document.getElementById('statusPie');
   if (statusPieCanvas) {
     new Chart(statusPieCanvas, {
       type: 'pie',
       data: {
-        labels: ['Paid', 'Partial', 'Unpaid'],
-        datasets: [{ data: [distributionTotals.Paid, distributionTotals.Partial, distributionTotals.Unpaid], backgroundColor: ['#198754', '#ffc107', '#dc3545'] }]
+        labels: ['Paid', 'Arrears (Unpaid)'],
+        datasets: [{ data: [distributionTotals.Paid, distributionTotals.Arrears], backgroundColor: ['#198754', '#dc3545'] }]
       },
       options: {
         responsive: true,
@@ -104,13 +97,49 @@ const drawDashboard = () => {
           },
           tooltip: {
             callbacks: {
-              label: context => `${context.label}: ${context.parsed} Tenant${context.parsed === 1 ? '' : 's'}`
+              label: context => `${context.label}: ${formatKsh(context.parsed)}`
             }
           }
         }
       }
     });
   }
+};
+const initDashboardFilters = () => {
+  const form = document.getElementById('dashboardFilters');
+  if (!form) return;
+  const viewSelect = form.querySelector('select[name="view"]');
+  const referenceSelect = form.querySelector('select[name="month"]');
+  const yearInput = form.querySelector('input[name="year"]');
+  if (!viewSelect || !referenceSelect || !yearInput) return;
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const buildOptions = mode => {
+    const selectedYear = Number(yearInput.value || new Date().getFullYear());
+    referenceSelect.innerHTML = '';
+    if (mode === 'quarterly') {
+      for (let quarter = 1; quarter <= 4; quarter += 1) {
+        const option = document.createElement('option');
+        option.value = `${selectedYear}-${String(((quarter - 1) * 3) + 1).padStart(2, '0')}`;
+        option.textContent = `Q${quarter}`;
+        referenceSelect.appendChild(option);
+      }
+    } else {
+      monthNames.forEach((label, idx) => {
+        const option = document.createElement('option');
+        option.value = `${selectedYear}-${String(idx + 1).padStart(2, '0')}`;
+        option.textContent = label;
+        referenceSelect.appendChild(option);
+      });
+    }
+  };
+
+  viewSelect.addEventListener('change', () => {
+    buildOptions(viewSelect.value);
+    referenceSelect.selectedIndex = 0;
+  });
+
+  yearInput.addEventListener('change', () => buildOptions(viewSelect.value));
 };
 
 let monthlyBudgetChart = null;
@@ -442,5 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
   addSorting();
   addLoadingStates();
   initBudgetFilters();
+  initDashboardFilters();
   window.resetFilters = resetFilters;
 });
