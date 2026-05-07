@@ -167,14 +167,49 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <?php endif; ?>
 <?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?><section class="card"><p>Data for this period is projected. Official billing starts on <?= h($futureBillingStartDate) ?>.</p></section><?php endif; ?>
 <section class="cards dashboard-kpi-grid">
-    <article class="card metric paid accountant-priority"><span class="metric-label">Collection Efficiency:</span><strong><span class="card-value"><?= number_format($collectionEfficiency, 2) ?>%</span></strong></article>
-    <article class="card metric unpaid accountant-priority"><span class="metric-label">Accounts Receivable:</span><strong><span class="card-value">KSh <?= number_format($accountsReceivable, 2) ?></span></strong></article>
-    <article class="card metric occupancy-widget"><span class="metric-label">Occupancy Rate:</span><strong><span class="card-value"><?= number_format($occupancyRate, 2) ?>% Occupancy (<?= $occupiedUnits ?>/<?= $totalUnits ?>)</span></strong></article>
+    <article class="card metric paid accountant-priority"><span class="metric-label">Collection Efficiency:</span><strong><span id="collection_efficiency_value" class="card-value"><?= number_format($collectionEfficiency, 2) ?>%</span></strong></article>
+    <article class="card metric unpaid accountant-priority"><span class="metric-label">Accounts Receivable:</span><strong><span id="accounts_receivable_value" class="card-value">KSh <?= number_format($accountsReceivable, 2) ?></span></strong></article>
+    <article class="card metric occupancy-widget"><span class="metric-label">Occupancy Rate:</span><strong><span id="occupancy_rate_value" class="card-value"><?= number_format($occupancyRate, 2) ?>% Occupancy (<?= $occupiedUnits ?>/<?= $totalUnits ?>)</span></strong></article>
     <article class="card metric unpaid"><span class="metric-label">Late Payment Alert (&gt; 10th):</span><strong><span class="card-value"><?= $latePaymentAlert ?></span></strong></article>
 </section>
 <section class="charts-grid dashboard-charts-grid">
     <article class="card"><h3>Revenue Trend (Year-to-Date)</h3><canvas id="incomeTrend"></canvas></article>
     <article class="card compact-pie-card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
+</section>
+
+<section class="card">
+    <h3>Financial Data Tables</h3>
+    <div class="table-responsive">
+        <table>
+            <thead><tr><th>Month</th><th>Expected (KSh)</th><th>Paid (KSh)</th><th>Receivable (KSh)</th><th>Collection %</th></tr></thead>
+            <tbody>
+                <?php foreach ($trend as $row): ?>
+                <?php
+                    $expectedAmount = (float) ($row['expected'] ?? 0);
+                    $paidAmount = (float) ($row['paid'] ?? 0);
+                    $receivableAmount = max($expectedAmount - $paidAmount, 0);
+                    $rowCollection = $expectedAmount > 0 ? (($paidAmount / $expectedAmount) * 100) : 0.0;
+                ?>
+                <tr>
+                    <td><?= h((string) $row['month_key']) ?></td>
+                    <td><?= number_format($expectedAmount, 2) ?></td>
+                    <td><?= number_format($paidAmount, 2) ?></td>
+                    <td><?= number_format($receivableAmount, 2) ?></td>
+                    <td><?= number_format($rowCollection, 2) ?>%</td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <div class="table-responsive">
+        <table>
+            <thead><tr><th>Status</th><th>Amount (KSh)</th></tr></thead>
+            <tbody>
+                <tr><td>Collected</td><td><?= number_format((float) ($distribution['paid_total'] ?? 0), 2) ?></td></tr>
+                <tr><td>Arrears</td><td><?= number_format((float) ($distribution['arrears_total'] ?? 0), 2) ?></td></tr>
+            </tbody>
+        </table>
+    </div>
 </section>
 <section class="card data-management-card">
     <h4>Data Management</h4>
@@ -187,7 +222,7 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
             <p>Upload the raw CSV file here for the system to process and perform financial analysis.</p>
         </div>
         <div class="data-management-item">
-            <a id="dashboard_download_csv" class="button-link action-download" href="/public/download_data.php?type=raw">DOWNLOAD CSV FILE</a>
+            <button id="dashboard_download_csv" type="button" class="button-link action-download">DOWNLOAD CSV FILE</button>
             <p>Download the original uploaded file to make edits or manual corrections.</p>
         </div>
     </div>
@@ -196,56 +231,87 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 window.dashboardData = { trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>, distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?> };
 document.addEventListener('DOMContentLoaded', () => {
     const csvInput = document.getElementById('dashboard_csv_file');
-    const downloadLink = document.getElementById('dashboard_download_csv');
-    const rawCsvStorageKey = 'dashboardRawCsvUpload';
+    const downloadButton = document.getElementById('dashboard_download_csv');
+    const state = window.dashboardState = window.dashboardState || { uploadedFile: null };
 
-    const triggerRawCsvDownload = (name, content) => {
-        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-        const blobUrl = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = blobUrl;
-        anchor.download = name || 'raw-upload.csv';
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(blobUrl);
+    const collectionEfficiencyValue = document.getElementById('collection_efficiency_value');
+    const accountsReceivableValue = document.getElementById('accounts_receivable_value');
+    const occupancyRateValue = document.getElementById('occupancy_rate_value');
+
+    const toNumber = value => {
+        const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const updateDashboardCards = (expectedTotal, paidTotal, occupiedUnits, totalUnits) => {
+        const accountsReceivable = Math.max(expectedTotal - paidTotal, 0);
+        const collectionEfficiency = expectedTotal > 0 ? (paidTotal / expectedTotal) * 100 : 0;
+        const occupancyRate = totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0;
+
+        if (collectionEfficiencyValue) collectionEfficiencyValue.textContent = `${collectionEfficiency.toFixed(2)}%`;
+        if (accountsReceivableValue) accountsReceivableValue.textContent = `KSh ${accountsReceivable.toFixed(2)}`;
+        if (occupancyRateValue) occupancyRateValue.textContent = `${occupancyRate.toFixed(2)}% Occupancy (${occupiedUnits}/${totalUnits})`;
+    };
+
+    const parseAndApplyMetrics = async file => {
+        const text = await file.text();
+        const rows = text.split(/\r?\n/).filter(Boolean);
+        if (rows.length < 2) return;
+
+        const headers = rows[0].split(',').map(header => header.trim().toLowerCase());
+        const expectedIndex = headers.findIndex(h => h.includes('expected'));
+        const paidIndex = headers.findIndex(h => h.includes('paid'));
+        const occupiedIndex = headers.findIndex(h => h.includes('occupied'));
+        const totalUnitsIndex = headers.findIndex(h => h.includes('total units') || h.includes('units total'));
+
+        let expectedTotal = 0;
+        let paidTotal = 0;
+        let occupiedUnits = 0;
+        let totalUnits = 0;
+
+        rows.slice(1).forEach(line => {
+            const cols = line.split(',');
+            if (expectedIndex >= 0) expectedTotal += toNumber(cols[expectedIndex]);
+            if (paidIndex >= 0) paidTotal += toNumber(cols[paidIndex]);
+            if (occupiedIndex >= 0) occupiedUnits += toNumber(cols[occupiedIndex]);
+            if (totalUnitsIndex >= 0) totalUnits += toNumber(cols[totalUnitsIndex]);
+        });
+
+        updateDashboardCards(expectedTotal, paidTotal, occupiedUnits, totalUnits);
     };
 
     if (csvInput) {
         csvInput.addEventListener('change', async () => {
-            if (!csvInput.files || csvInput.files.length === 0) {
-                return;
-            }
-
+            if (!csvInput.files || csvInput.files.length === 0) return;
             const [file] = csvInput.files;
+            state.uploadedFile = file;
+
             try {
-                const content = await file.text();
-                localStorage.setItem(rawCsvStorageKey, JSON.stringify({
-                    name: file.name || 'raw-upload.csv',
-                    content,
-                    updatedAt: new Date().toISOString()
-                }));
+                await parseAndApplyMetrics(file);
             } catch (error) {
-                localStorage.removeItem(rawCsvStorageKey);
+                console.error('Unable to parse uploaded CSV.', error);
             }
 
             csvInput.form?.submit();
         });
     }
 
-    if (downloadLink) {
-        downloadLink.addEventListener('click', event => {
-            const storedRawCsv = localStorage.getItem(rawCsvStorageKey);
-            if (!storedRawCsv) return;
-            try {
-                const parsed = JSON.parse(storedRawCsv);
-                if (parsed && typeof parsed.content === 'string' && parsed.content.length > 0) {
-                    event.preventDefault();
-                    triggerRawCsvDownload(String(parsed.name || 'raw-upload.csv'), parsed.content);
-                }
-            } catch (error) {
-                localStorage.removeItem(rawCsvStorageKey);
+    if (downloadButton) {
+        downloadButton.addEventListener('click', () => {
+            const file = state.uploadedFile;
+            if (!file) {
+                window.alert('No raw CSV file is available yet.');
+                return;
             }
+
+            const blobUrl = URL.createObjectURL(file);
+            const anchor = document.createElement('a');
+            anchor.href = blobUrl;
+            anchor.download = file.name || 'raw-upload.csv';
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(blobUrl);
         });
     }
 });
