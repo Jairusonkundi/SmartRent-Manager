@@ -103,13 +103,24 @@ $trendStmt->execute(array_merge([sprintf('%04d-01', $year), sprintf('%04d-12', $
 $trend = $trendStmt->fetchAll() ?: [];
 
 $distributionStmt = $pdo->prepare(
-    "SELECT p.collection_status AS status, COUNT(*) AS total
-     FROM payments p
-     LEFT JOIN leases l ON l.tenant_id=p.tenant_id AND l.status='active'
-     LEFT JOIN units u ON u.id=l.unit_id
-     LEFT JOIN properties pr ON pr.id=u.property_id
-     WHERE p.billing_month >= ? AND p.billing_month <= ?{$propertyWhere}
-     GROUP BY p.collection_status"
+    "SELECT status, COUNT(*) AS total
+     FROM (
+        SELECT p.tenant_id,
+               CASE
+                   WHEN COALESCE(SUM(p.amount_paid), 0) >= COALESCE(SUM(p.amount_expected), 0)
+                        AND COALESCE(SUM(p.amount_expected), 0) > 0 THEN 'Paid'
+                   WHEN COALESCE(SUM(p.amount_paid), 0) > 0
+                        AND COALESCE(SUM(p.amount_paid), 0) < COALESCE(SUM(p.amount_expected), 0) THEN 'Partial'
+                   ELSE 'Unpaid'
+               END AS status
+        FROM payments p
+        LEFT JOIN leases l ON l.tenant_id=p.tenant_id AND l.status='active'
+        LEFT JOIN units u ON u.id=l.unit_id
+        LEFT JOIN properties pr ON pr.id=u.property_id
+        WHERE p.billing_month >= ? AND p.billing_month <= ?{$propertyWhere}
+        GROUP BY p.tenant_id
+     ) distribution_breakdown
+     GROUP BY status"
 );
 $distributionStmt->execute(array_merge([$periodStart, $periodEnd], $propertyParams));
 $distribution = $distributionStmt->fetchAll() ?: [];
@@ -193,7 +204,7 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
     <div class="data-management-card">
         <h4>Data Management</h4>
         <p>Download the currently imported data for offline accounting edits and re-upload when ready.</p>
-        <a class="button-link" href="/public/download_data.php">Download Source File (CSV/Excel)</a>
+        <a class="button-link" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">Download Source File (CSV/Excel)</a>
     </div>
     <?php if ($latestImports === []): ?>
         <p class="muted-text">No import activity has been recorded yet.</p>
