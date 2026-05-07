@@ -10,10 +10,17 @@ require_once __DIR__ . '/../modules/BudgetService.php';
 requireAuth();
 $year = (int) ($_GET['year'] ?? date('Y'));
 $selectedMonthInput = (string) ($_GET['month'] ?? sprintf('%04d-%02d', $year, (int) date('n')));
-$selectedMonth = $selectedMonthInput === 'all' ? 'all' : date('Y-m', strtotime($selectedMonthInput));
-$selectedMonthYear = $selectedMonth !== 'all' ? (int) substr($selectedMonth, 0, 4) : $year;
-if ($selectedMonth !== 'all' && $selectedMonthYear !== $year) {
-    $selectedMonth = sprintf('%04d-01', $year);
+$selectedMonth = sprintf('%04d-%02d', $year, (int) date('n'));
+if ($selectedMonthInput === 'all') {
+    $selectedMonth = 'all';
+} elseif (preg_match('/^(\d{4})-(\d{2})$/', $selectedMonthInput, $matches) === 1) {
+    $candidateYear = (int) $matches[1];
+    $candidateMonth = (int) $matches[2];
+    if ($candidateYear === $year && $candidateMonth >= 1 && $candidateMonth <= 12) {
+        $selectedMonth = sprintf('%04d-%02d', $candidateYear, $candidateMonth);
+    } else {
+        $selectedMonth = sprintf('%04d-01', $year);
+    }
 }
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
@@ -35,9 +42,7 @@ if ($selectedMonth !== 'all') {
 }
 $selectedQuarter = (int) ceil(((int) $selectedDate->format('n')) / 3);
 $selectedReference = $view === 'quarterly' ? sprintf('Q%d', $selectedQuarter) : $selectedDate->format('F');
-$periodHeadline = $view === 'quarterly'
-    ? sprintf('Analysis for %s %s', $selectedReference, $selectedDate->format('Y'))
-    : sprintf('Analysis for %s %s', $selectedReference, $selectedDate->format('Y'));
+$periodHeadline = sprintf('Analysis for %s %d', $selectedReference, $year);
 
 $periodStart = sprintf('%04d-01', $year);
 $periodEnd = sprintf('%04d-12', $year);
@@ -130,19 +135,19 @@ renderHeader('Budget');
 
 <section class="cards metrics-general">
     <article class="card metric metric-general">
-        <span class="metric-label">Annual Budget:</span>
+        <span class="metric-label">Total YTD Budget:</span>
         <strong><span id="totalYtdBudgetCard" class="card-value calculable-card"><?= formatKsh($totalYtdBudget) ?></span></strong>
     </article>
     <article class="card metric metric-general">
-        <span class="metric-label">Annual Collected:</span>
+        <span class="metric-label">Total YTD Collection:</span>
         <strong><span id="totalYtdCollectionCard" class="card-value calculable-card"><?= formatKsh($totalPaid) ?></span></strong>
     </article>
     <article class="card metric metric-general">
-        <span class="metric-label">Annual Arrears:</span>
+        <span class="metric-label">Total YTD Arrears:</span>
         <strong><span id="totalYtdArrearsCard" class="card-value calculable-card"><?= formatKsh($totalOutstanding) ?></span></strong>
     </article>
 </section>
-<p class="budget-ytd-note">Annual totals reflect the full selected year from imported Excel records and do not change with period filters.</p>
+<p class="budget-ytd-note">Totals reflect cumulative data from January 1st to the current date within the selected year.</p>
 
 <section class="card selected-period-title">
     <h3 id="analysisPeriodHeadline" class="calculable-card"><?= h($periodHeadline) ?></h3>

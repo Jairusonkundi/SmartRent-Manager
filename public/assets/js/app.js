@@ -337,9 +337,12 @@ const initBudgetFilters = () => {
     renderReferenceOptions(viewSelect.value);
   });
 
-  yearInput.addEventListener('change', () => {
+  const syncReferenceToYear = () => {
     renderReferenceOptions(viewSelect.value);
-  });
+  };
+
+  yearInput.addEventListener('change', syncReferenceToYear);
+  yearInput.addEventListener('input', syncReferenceToYear);
 
   form.addEventListener('submit', () => {
     renderReferenceOptions(viewSelect.value);
