@@ -142,6 +142,19 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <?php if (!$hasPayments): ?>
 <section class="card"><h3>Welcome! Please upload your CSV to begin</h3><p>Import your wide-format rent collection data to unlock dashboard metrics, arrears, and reports.</p><a class="button-link" href="/public/upload_csv.php">Upload CSV</a></section>
 <?php renderFooter(); return; endif; ?>
+<section class="card data-management-card">
+    <h4>Data Management</h4>
+    <div class="data-management-actions">
+        <div class="data-management-item">
+            <a class="button-link action-upload" href="/public/upload_csv.php">UPLOAD CSV FILE</a>
+            <p>Import your monthly tenant records and payment data via a CSV template.</p>
+        </div>
+        <div class="data-management-item">
+            <a class="button-link action-download" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">DOWNLOAD CSV FILE</a>
+            <p>Export the current filtered view of your property data for offline reporting.</p>
+        </div>
+    </div>
+</section>
 <section class="card budget-filter-card">
     <form method="get" id="dashboardFilters" class="control-bar filter-form budget-filter-row">
         <label>Property
@@ -157,10 +170,6 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
         <div class="control-actions">
             <button type="submit">Search</button>
             <button type="button" class="button button-secondary" onclick="window.location.href='/public/dashboard.php';">Reset</button>
-        </div>
-        <div class="dashboard-data-actions">
-            <a class="button-link action-upload" href="/public/upload_csv.php">Upload Data</a>
-            <a class="button-link action-download" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">Download Data</a>
         </div>
     </form>
 </section>

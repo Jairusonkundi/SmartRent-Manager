@@ -674,25 +674,39 @@ th { cursor: pointer; background: #f9fafb; }
   font-size: 1.2rem;
 }
 
-.dashboard-data-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
+.data-management-actions {
+  display: grid;
+  gap: 12px;
 }
 
-.dashboard-data-actions .button-link {
-  min-height: 46px;
+.data-management-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.data-management-item .button-link {
+  min-height: 42px;
+  min-width: 190px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
-.dashboard-data-actions .action-upload {
+.data-management-item p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.data-management-item .action-upload {
   background: linear-gradient(120deg, #16a34a, #059669);
 }
 
-.dashboard-data-actions .action-download {
+.data-management-item .action-download {
   background: linear-gradient(120deg, #1d4ed8, #2563eb);
 }
 
@@ -722,7 +736,8 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .data-management-card h4 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  font-size: 1rem;
 }
 
 @media (max-width: 960px) {
@@ -732,5 +747,14 @@ th { cursor: pointer; background: #f9fafb; }
 
   .budget-filter-row > label {
     max-width: none;
+  }
+
+  .data-management-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .data-management-item .button-link {
+    width: 100%;
   }
 }
