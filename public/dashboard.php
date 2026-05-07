@@ -103,27 +103,17 @@ $trendStmt->execute(array_merge([sprintf('%04d-01', $year), sprintf('%04d-12', $
 $trend = $trendStmt->fetchAll() ?: [];
 
 $distributionStmt = $pdo->prepare(
-    "SELECT status, COUNT(*) AS total
-     FROM (
-        SELECT p.tenant_id,
-               CASE
-                   WHEN COALESCE(SUM(p.amount_paid), 0) >= COALESCE(SUM(p.amount_expected), 0)
-                        AND COALESCE(SUM(p.amount_expected), 0) > 0 THEN 'Paid'
-                   WHEN COALESCE(SUM(p.amount_paid), 0) > 0
-                        AND COALESCE(SUM(p.amount_paid), 0) < COALESCE(SUM(p.amount_expected), 0) THEN 'Partial'
-                   ELSE 'Unpaid'
-               END AS status
-        FROM payments p
-        LEFT JOIN leases l ON l.tenant_id=p.tenant_id AND l.status='active'
-        LEFT JOIN units u ON u.id=l.unit_id
-        LEFT JOIN properties pr ON pr.id=u.property_id
-        WHERE p.billing_month >= ? AND p.billing_month <= ?{$propertyWhere}
-        GROUP BY p.tenant_id
-     ) distribution_breakdown
-     GROUP BY status"
+    "SELECT
+        COALESCE(SUM(CASE WHEN p.amount_paid >= p.amount_expected AND p.amount_expected > 0 THEN p.amount_paid ELSE 0 END), 0) AS paid_total,
+        COALESCE(SUM(CASE WHEN p.amount_expected > p.amount_paid THEN p.amount_expected - p.amount_paid ELSE 0 END), 0) AS arrears_total
+     FROM payments p
+     LEFT JOIN leases l ON l.tenant_id=p.tenant_id AND l.status='active'
+     LEFT JOIN units u ON u.id=l.unit_id
+     LEFT JOIN properties pr ON pr.id=u.property_id
+     WHERE p.billing_month >= ? AND p.billing_month <= ?{$propertyWhere}"
 );
 $distributionStmt->execute(array_merge([$periodStart, $periodEnd], $propertyParams));
-$distribution = $distributionStmt->fetchAll() ?: [];
+$distribution = $distributionStmt->fetch() ?: ['paid_total' => 0, 'arrears_total' => 0];
 
 $latestImports = [];
 try {
@@ -174,7 +164,7 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
         <label>View
             <select name="view"><option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option><option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option></select>
         </label>
-        <label class="reference-month-field">Reference Month
+        <label class="reference-month-field">Reference Month/Quarter
             <select name="month"><?php if ($view === 'quarterly'): ?><?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?><?php $quarterMonthKey = sprintf('%04d-%02d', $year, (($quarterNumber - 1) * 3) + 1); ?><option value="<?= h($quarterMonthKey) ?>" <?= $selectedMonth === $quarterMonthKey ? 'selected' : '' ?>>Q<?= $quarterNumber ?></option><?php endfor; ?><?php else: ?><?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?><?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?><option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('M', strtotime($monthKey . '-01'))) ?></option><?php endfor; ?><?php endif; ?></select>
         </label>
         <div class="control-actions">
@@ -182,6 +172,11 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
             <button type="button" class="button button-secondary" onclick="window.location.href='/public/dashboard.php';">Reset</button>
         </div>
     </form>
+</section>
+<section class="card dashboard-download-card">
+    <h4>Data Management</h4>
+    <p>Download source records for local audit and reconciliation.</p>
+    <a class="button-link" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">Download Source Data</a>
 </section>
 <?php if ($missingTenantDataCount > 0): ?>
 <section class="card subtle-alert-card">
@@ -202,9 +197,7 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <section class="card latest-imports-card">
     <h3>Latest Activity</h3>
     <div class="data-management-card">
-        <h4>Data Management</h4>
         <p>Download the currently imported data for offline accounting edits and re-upload when ready.</p>
-        <a class="button-link" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">Download Source File (CSV/Excel)</a>
     </div>
     <?php if ($latestImports === []): ?>
         <p class="muted-text">No import activity has been recorded yet.</p>

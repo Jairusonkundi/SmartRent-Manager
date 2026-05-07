@@ -637,12 +637,14 @@ th { cursor: pointer; background: #f9fafb; }
 
 .budget-filter-row .control-actions {
   margin-left: 0;
-  justify-content: flex-end;
+  justify-content: stretch;
   align-self: end;
+  width: 100%;
 }
 
 .budget-filter-row .control-actions button {
-  min-width: 124px;
+  min-width: 0;
+  flex: 1;
   min-height: 46px;
   font-size: 1rem;
 }
@@ -690,6 +692,10 @@ th { cursor: pointer; background: #f9fafb; }
   border: 1px solid #dbe4ee;
   border-radius: 10px;
   background: #f8fbff;
+}
+
+.dashboard-download-card {
+  margin-bottom: 12px;
 }
 
 .data-management-card h4 {

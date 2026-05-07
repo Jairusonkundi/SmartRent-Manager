@@ -100,7 +100,7 @@ renderHeader('Budget');
                 <option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option>
             </select>
         </label>
-        <label>Reference
+        <label>Reference Month/Quarter
             <select name="month" id="budgetReferenceSelect">
                 <?php if ($view === 'quarterly'): ?>
                     <?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?>
