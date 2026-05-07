@@ -50,11 +50,10 @@ $varianceAmount = (float) $periodPaid - (float) $periodExpected;
 $variancePercent = $periodExpected > 0 ? ((float) $varianceAmount / (float) $periodExpected) * 100 : 0.0;
 $varianceBadgeClass = $varianceAmount >= 0 ? 'paid' : 'unpaid';
 
-$totalExpected = (float) $budgetData['total_annual_budget'];
+$totalYtdBudget = (float) $budgetData['total_ytd_budget'];
 $totalPaid = (float) $budgetData['total_ytd_collection'];
 $totalOutstanding = (float) $budgetData['total_ytd_arrears'];
-$projectedFutureRent = (float) $budgetData['projected_future_rent'];
-
+$isYtdBalanced = abs($totalYtdBudget - ($totalPaid + $totalOutstanding)) < 0.01;
 
 if ((string) ($_GET['ajax'] ?? '') === '1') {
     header('Content-Type: application/json');
@@ -66,10 +65,9 @@ if ((string) ($_GET['ajax'] ?? '') === '1') {
         'currentYear' => $currentYear,
         'currentQuarter' => $currentQuarter,
         'totals' => [
-            'totalAnnualBudget' => $totalExpected,
+            'totalYtdBudget' => $totalYtdBudget,
             'totalYtdCollection' => $totalPaid,
             'totalYtdArrears' => $totalOutstanding,
-            'projectedFutureRent' => $projectedFutureRent,
         ],
     ], JSON_THROW_ON_ERROR);
     exit;
@@ -97,6 +95,12 @@ renderHeader('Budget');
         </div>
     </form>
 </section>
+<?php if (!$isYtdBalanced): ?>
+<section class="card">
+    <p class="negative-financial">Budget totals are out of sync. Please refresh imported records.</p>
+</section>
+<?php endif; ?>
+
 <?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?>
 <section class="card">
     <p>Data for this period is projected. Official billing starts on <?= h($futureBillingStartDate) ?>.</p>
@@ -105,8 +109,8 @@ renderHeader('Budget');
 
 <section class="cards metrics-general">
     <article class="card metric metric-general">
-        <span class="metric-label">Total Annual Budget (<?= $year ?>):</span>
-        <strong><span id="totalAnnualBudgetCard" class="card-value"><?= formatKsh($totalExpected) ?></span></strong>
+        <span class="metric-label">Total YTD Budget:</span>
+        <strong><span id="totalYtdBudgetCard" class="card-value"><?= formatKsh($totalYtdBudget) ?></span></strong>
     </article>
     <article class="card metric metric-general">
         <span class="metric-label">Total YTD Collection:</span>
@@ -115,9 +119,9 @@ renderHeader('Budget');
     <article class="card metric metric-general">
         <span class="metric-label">Total YTD Arrears:</span>
         <strong><span id="totalYtdArrearsCard" class="card-value"><?= formatKsh($totalOutstanding) ?></span></strong>
-        <small id="projectedFutureRentHint">Projected Future Rent: <?= formatKsh($projectedFutureRent) ?></small>
     </article>
 </section>
+<p class="budget-ytd-note">YTD reflects cumulative data from January 1st of the selected year to the current date.</p>
 
 <section class="card selected-period-title">
     <h3><?= h($periodHeadline) ?></h3>
@@ -188,10 +192,9 @@ window.budgetData = {
     currentYear: <?= json_encode($currentYear, JSON_THROW_ON_ERROR) ?>,
     currentQuarter: <?= json_encode($currentQuarter, JSON_THROW_ON_ERROR) ?>,
     totals: <?= json_encode([
-        'totalAnnualBudget' => $totalExpected,
+        'totalYtdBudget' => $totalYtdBudget,
         'totalYtdCollection' => $totalPaid,
         'totalYtdArrears' => $totalOutstanding,
-        'projectedFutureRent' => $projectedFutureRent,
     ], JSON_THROW_ON_ERROR) ?>
 };
 </script>
@@ -210,14 +213,12 @@ window.budgetData = {
             .then(data => {
                 window.budgetData = data;
                 if (window.renderBudgetDashboard) window.renderBudgetDashboard();
-                const annual = document.getElementById('totalAnnualBudgetCard');
+                const ytdBudget = document.getElementById('totalYtdBudgetCard');
                 const collection = document.getElementById('totalYtdCollectionCard');
                 const arrears = document.getElementById('totalYtdArrearsCard');
-                const hint = document.getElementById('projectedFutureRentHint');
-                if (annual) annual.textContent = toKsh(data.totals.totalAnnualBudget);
+                if (ytdBudget) ytdBudget.textContent = toKsh(data.totals.totalYtdBudget);
                 if (collection) collection.textContent = toKsh(data.totals.totalYtdCollection);
                 if (arrears) arrears.textContent = toKsh(data.totals.totalYtdArrears);
-                if (hint) hint.textContent = `Projected Future Rent: ${toKsh(data.totals.projectedFutureRent)}`;
             })
             .catch(() => {});
     };
