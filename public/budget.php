@@ -19,8 +19,9 @@ $isFuturePeriod = $selectedMonth > $currentMonth;
 $futureBillingStartDate = $isFuturePeriod ? date('F j, Y', strtotime($selectedMonth . '-01')) : null;
 
 $service = new BudgetService();
-$monthly = $service->monthlyBreakdown($year);
-$quarterly = $service->quarterlyComparison($year);
+$budgetData = $service->dashboardData($year, $selectedMonth);
+$monthly = $budgetData['monthly'];
+$quarterly = $budgetData['quarterly'];
 $quarterlyYoY = $service->quarterlyYearOverYear($year);
 
 $selectedDate = new DateTimeImmutable($selectedMonth . '-01');
@@ -49,9 +50,30 @@ $varianceAmount = (float) $periodPaid - (float) $periodExpected;
 $variancePercent = $periodExpected > 0 ? ((float) $varianceAmount / (float) $periodExpected) * 100 : 0.0;
 $varianceBadgeClass = $varianceAmount >= 0 ? 'paid' : 'unpaid';
 
-$totalExpected = array_sum(array_map(fn($r) => (float) $r['expected'], $monthly));
-$totalPaid = array_sum(array_map(fn($r) => (float) $r['paid'], $monthly));
-$totalOutstanding = array_sum(array_map(fn($r) => (float) $r['expected'] - (float) $r['paid'], $monthly));
+$totalExpected = (float) $budgetData['total_annual_budget'];
+$totalPaid = (float) $budgetData['total_ytd_collection'];
+$totalOutstanding = (float) $budgetData['total_ytd_arrears'];
+$projectedFutureRent = (float) $budgetData['projected_future_rent'];
+
+
+if ((string) ($_GET['ajax'] ?? '') === '1') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'monthly' => $monthly,
+        'quarterly' => $quarterly,
+        'quarterlyYoY' => $quarterlyYoY,
+        'selectedYear' => $year,
+        'currentYear' => $currentYear,
+        'currentQuarter' => $currentQuarter,
+        'totals' => [
+            'totalAnnualBudget' => $totalExpected,
+            'totalYtdCollection' => $totalPaid,
+            'totalYtdArrears' => $totalOutstanding,
+            'projectedFutureRent' => $projectedFutureRent,
+        ],
+    ], JSON_THROW_ON_ERROR);
+    exit;
+}
 
 renderHeader('Budget');
 ?>
@@ -84,15 +106,16 @@ renderHeader('Budget');
 <section class="cards metrics-general">
     <article class="card metric metric-general">
         <span class="metric-label">Total Annual Budget (<?= $year ?>):</span>
-        <strong><span class="card-value"><?= formatKsh($totalExpected) ?></span></strong>
+        <strong><span id="totalAnnualBudgetCard" class="card-value"><?= formatKsh($totalExpected) ?></span></strong>
     </article>
     <article class="card metric metric-general">
         <span class="metric-label">Total YTD Collection:</span>
-        <strong><span class="card-value"><?= formatKsh($totalPaid) ?></span></strong>
+        <strong><span id="totalYtdCollectionCard" class="card-value"><?= formatKsh($totalPaid) ?></span></strong>
     </article>
     <article class="card metric metric-general">
         <span class="metric-label">Total YTD Arrears:</span>
-        <strong><span class="card-value"><?= formatKsh($totalOutstanding) ?></span></strong>
+        <strong><span id="totalYtdArrearsCard" class="card-value"><?= formatKsh($totalOutstanding) ?></span></strong>
+        <small id="projectedFutureRentHint">Projected Future Rent: <?= formatKsh($projectedFutureRent) ?></small>
     </article>
 </section>
 
@@ -116,7 +139,7 @@ renderHeader('Budget');
 </section>
 <section class="card">
     <h3>Monthly Budget Breakdown (<?= $year ?>)</h3>
-    <table class="sortable">
+    <table id="monthlyBreakdownTable" class="sortable budget-monthly-breakdown">
         <thead><tr><th>Month</th><th>Expected</th><th>Paid</th><th>Outstanding</th></tr></thead>
         <tbody>
             <?php foreach ($monthly as $row): ?>
@@ -135,7 +158,7 @@ renderHeader('Budget');
 </section>
 <section class="card">
     <h3>Quarterly Side-by-Side: Q1 vs Q2</h3>
-    <table>
+    <table id="quarterlyComparisonTable">
         <thead><tr><th>Quarter</th><th>Expected</th><th>Paid</th><th>Variance</th></tr></thead>
         <tbody>
         <?php foreach ($quarterly as $row): ?>
@@ -163,7 +186,43 @@ window.budgetData = {
     quarterlyYoY: <?= json_encode($quarterlyYoY, JSON_THROW_ON_ERROR) ?>,
     selectedYear: <?= json_encode($year, JSON_THROW_ON_ERROR) ?>,
     currentYear: <?= json_encode($currentYear, JSON_THROW_ON_ERROR) ?>,
-    currentQuarter: <?= json_encode($currentQuarter, JSON_THROW_ON_ERROR) ?>
+    currentQuarter: <?= json_encode($currentQuarter, JSON_THROW_ON_ERROR) ?>,
+    totals: <?= json_encode([
+        'totalAnnualBudget' => $totalExpected,
+        'totalYtdCollection' => $totalPaid,
+        'totalYtdArrears' => $totalOutstanding,
+        'projectedFutureRent' => $projectedFutureRent,
+    ], JSON_THROW_ON_ERROR) ?>
 };
 </script>
+
+<script>
+(function(){
+    const form = document.getElementById('budgetFilters');
+    if (!form) return;
+    const controls = form.querySelectorAll('input[name="year"], input[name="month"], select[name="view"]');
+    const toKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const sync = function () {
+        const params = new URLSearchParams(new FormData(form));
+        params.set('ajax', '1');
+        fetch('/public/budget.php?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+            .then(resp => resp.json())
+            .then(data => {
+                window.budgetData = data;
+                if (window.renderBudgetDashboard) window.renderBudgetDashboard();
+                const annual = document.getElementById('totalAnnualBudgetCard');
+                const collection = document.getElementById('totalYtdCollectionCard');
+                const arrears = document.getElementById('totalYtdArrearsCard');
+                const hint = document.getElementById('projectedFutureRentHint');
+                if (annual) annual.textContent = toKsh(data.totals.totalAnnualBudget);
+                if (collection) collection.textContent = toKsh(data.totals.totalYtdCollection);
+                if (arrears) arrears.textContent = toKsh(data.totals.totalYtdArrears);
+                if (hint) hint.textContent = `Projected Future Rent: ${toKsh(data.totals.projectedFutureRent)}`;
+            })
+            .catch(() => {});
+    };
+    controls.forEach(control => control.addEventListener('change', sync));
+})();
+</script>
+
 <?php renderFooter(); ?>

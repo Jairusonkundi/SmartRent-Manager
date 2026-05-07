@@ -6,6 +6,46 @@ require_once __DIR__ . '/../config/database.php';
 
 final class BudgetService
 {
+    public function dashboardData(int $year, string $referenceMonth): array
+    {
+        $monthly = $this->monthlyBreakdown($year);
+        $quarterly = $this->rollupQuarterly($monthly);
+        $referenceMonth = substr($referenceMonth, 0, 7);
+        if (!preg_match('/^\d{4}-\d{2}$/', $referenceMonth)) {
+            $referenceMonth = date('Y-m');
+        }
+
+        $ytdCollection = 0.0;
+        $ytdArrears = 0.0;
+        $projectedFutureRent = 0.0;
+        foreach ($monthly as $row) {
+            $monthKey = (string) ($row['month_key'] ?? '');
+            if (substr($monthKey, 0, 4) !== (string) $year) {
+                continue;
+            }
+
+            $expected = (float) ($row['expected'] ?? 0);
+            $paid = (float) ($row['paid'] ?? 0);
+            $outstanding = $expected - $paid;
+
+            if ($monthKey <= $referenceMonth) {
+                $ytdCollection += $paid;
+                $ytdArrears += $outstanding;
+            } else {
+                $projectedFutureRent += $expected;
+            }
+        }
+
+        return [
+            'monthly' => $monthly,
+            'quarterly' => $quarterly,
+            'total_ytd_collection' => $ytdCollection,
+            'total_ytd_arrears' => $ytdArrears,
+            'projected_future_rent' => $projectedFutureRent,
+            'total_annual_budget' => $ytdCollection + $ytdArrears + $projectedFutureRent,
+        ];
+    }
+
     public function monthlyBreakdown(int $year): array
     {
         $pdo = Database::connection();
