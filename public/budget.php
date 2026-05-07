@@ -9,7 +9,7 @@ require_once __DIR__ . '/../modules/BudgetService.php';
 
 requireAuth();
 $year = (int) ($_GET['year'] ?? date('Y'));
-$selectedMonthInput = (string) ($_GET['month'] ?? 'all');
+$selectedMonthInput = (string) ($_GET['month'] ?? sprintf('%04d-%02d', $year, (int) date('n')));
 $selectedMonth = $selectedMonthInput === 'all' ? 'all' : date('Y-m', strtotime($selectedMonthInput));
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
@@ -20,7 +20,7 @@ $isFuturePeriod = $selectedMonth !== 'all' && $selectedMonth > $currentMonth;
 $futureBillingStartDate = $isFuturePeriod ? date('F j, Y', strtotime($selectedMonth . '-01')) : null;
 
 $service = new BudgetService();
-$budgetData = $service->dashboardData($year, $selectedMonth);
+$budgetData = $service->dashboardData($year, 'all');
 $monthly = $budgetData['monthly'];
 $quarterly = $budgetData['quarterly'];
 $quarterlyYoY = $service->quarterlyYearOverYear($year);
@@ -30,11 +30,9 @@ if ($selectedMonth !== 'all') {
     $selectedDate = new DateTimeImmutable($selectedMonth . '-01');
 }
 $selectedQuarter = (int) ceil(((int) $selectedDate->format('n')) / 3);
-$periodHeadline = $selectedMonth === 'all'
-    ? sprintf('%d Full Year Performance', $year)
-    : ($view === 'quarterly'
-        ? sprintf('Q%d %s Analysis', $selectedQuarter, $selectedDate->format('Y'))
-        : $selectedDate->format('F Y') . ' Performance');
+$periodHeadline = $view === 'quarterly'
+    ? sprintf('Analysis for Q%d %s', $selectedQuarter, $selectedDate->format('Y'))
+    : sprintf('Analysis for %s', $selectedDate->format('F Y'));
 
 $periodStart = sprintf('%04d-01', $year);
 $periodEnd = sprintf('%04d-12', $year);
@@ -82,28 +80,15 @@ if ((string) ($_GET['ajax'] ?? '') === '1') {
 renderHeader('Budget');
 ?>
 <section class="card">
-    <form method="get" id="budgetFilters" class="control-bar filter-form">
+    <form method="get" id="budgetYearFilter" class="control-bar filter-form">
         <label>Year
             <input type="number" name="year" min="2000" max="2100" value="<?= $year ?>">
         </label>
-        <label>View
-            <select name="view">
-                <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
-                <option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option>
-            </select>
-        </label>
-        <label>Reference Month
-            <select name="month">
-                <option value="all" <?= $selectedMonth === 'all' ? 'selected' : '' ?>>All Months</option>
-                <?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?>
-                    <?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?>
-                    <option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option>
-                <?php endfor; ?>
-            </select>
-        </label>
+        <input type="hidden" name="view" value="<?= h($view) ?>">
+        <input type="hidden" name="month" value="<?= h($selectedMonth) ?>">
         <div class="control-actions">
-            <button type="submit">Search</button>
-            <button type="button" class="button" onclick="resetFilters('budgetFilters','/public/budget.php')">Clear Filters</button>
+            <button type="submit">Apply Year</button>
+            <button type="button" class="button" onclick="resetFilters('budgetYearFilter','/public/budget.php')">Reset</button>
         </div>
     </form>
 </section>
@@ -121,26 +106,49 @@ renderHeader('Budget');
 
 <section class="cards metrics-general">
     <article class="card metric metric-general">
-        <span class="metric-label">Total Budgeted:</span>
+        <span class="metric-label">Annual Budget:</span>
         <strong><span id="totalYtdBudgetCard" class="card-value"><?= formatKsh($totalYtdBudget) ?></span></strong>
     </article>
     <article class="card metric metric-general">
-        <span class="metric-label">Total Collected:</span>
+        <span class="metric-label">Annual Collected:</span>
         <strong><span id="totalYtdCollectionCard" class="card-value"><?= formatKsh($totalPaid) ?></span></strong>
     </article>
     <article class="card metric metric-general">
-        <span class="metric-label">Total Outstanding:</span>
+        <span class="metric-label">Annual Arrears:</span>
         <strong><span id="totalYtdArrearsCard" class="card-value"><?= formatKsh($totalOutstanding) ?></span></strong>
     </article>
 </section>
-<p class="budget-ytd-note">Totals reflect the cumulative data for the selected period (Year/Month) based on imported Excel records.</p>
+<p class="budget-ytd-note">Annual totals reflect the full selected year from imported Excel records and do not change with period filters.</p>
+
+<section class="card analysis-filter-card">
+    <form method="get" id="budgetPeriodFilter" class="control-bar filter-form">
+        <input type="hidden" name="year" value="<?= $year ?>">
+        <label>View
+            <select name="view">
+                <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                <option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option>
+            </select>
+        </label>
+        <label>Reference Month/Quarter
+            <select name="month">
+                <?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?>
+                    <?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?>
+                    <option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option>
+                <?php endfor; ?>
+            </select>
+        </label>
+        <div class="control-actions">
+            <button type="submit">Apply Period</button>
+        </div>
+    </form>
+</section>
 
 <section class="card selected-period-title">
     <h3><?= h($periodHeadline) ?></h3>
 </section>
 <section class="cards metrics-selected">
     <article class="card metric metric-selected">
-        <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Target:' : 'Month Target:' ?></span>
+        <span class="metric-label"><?= $view === 'quarterly' ? 'Quarter Budget:' : 'Month Budget:' ?></span>
         <strong><span class="card-value"><?= formatKsh($periodExpected) ?></span></strong>
     </article>
     <article class="card metric metric-selected">
@@ -209,33 +217,6 @@ window.budgetData = {
         'totalYtdArrears' => $totalOutstanding,
     ], JSON_THROW_ON_ERROR) ?>
 };
-</script>
-
-<script>
-(function(){
-    const form = document.getElementById('budgetFilters');
-    if (!form) return;
-    const controls = form.querySelectorAll('input[name="year"], select[name="month"], select[name="view"]');
-    const toKsh = value => `KSh ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    const sync = function () {
-        const params = new URLSearchParams(new FormData(form));
-        params.set('ajax', '1');
-        fetch('/public/budget.php?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
-            .then(resp => resp.json())
-            .then(data => {
-                window.budgetData = data;
-                if (window.renderBudgetDashboard) window.renderBudgetDashboard();
-                const ytdBudget = document.getElementById('totalYtdBudgetCard');
-                const collection = document.getElementById('totalYtdCollectionCard');
-                const arrears = document.getElementById('totalYtdArrearsCard');
-                if (ytdBudget) ytdBudget.textContent = toKsh(data.totals.totalYtdBudget);
-                if (collection) collection.textContent = toKsh(data.totals.totalYtdCollection);
-                if (arrears) arrears.textContent = toKsh(data.totals.totalYtdArrears);
-            })
-            .catch(() => {});
-    };
-    controls.forEach(control => control.addEventListener('change', sync));
-})();
 </script>
 
 <?php renderFooter(); ?>
