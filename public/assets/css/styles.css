@@ -289,6 +289,28 @@ th { cursor: pointer; background: #f9fafb; }
   margin-bottom: 8px;
 }
 
+.budget-filter-card {
+  margin-bottom: 10px;
+  padding: 12px 16px;
+}
+
+.budget-filter-row {
+  margin-bottom: 0;
+  grid-template-columns: minmax(110px, 150px) minmax(140px, 180px) minmax(160px, 220px) auto;
+  gap: 10px;
+}
+
+.budget-filter-row label {
+  gap: 4px;
+}
+
+.budget-filter-row input,
+.budget-filter-row select,
+.budget-filter-row button,
+.budget-filter-row .button {
+  padding: 8px 10px;
+}
+
 .selected-period-title {
   margin-bottom: 6px;
   padding-top: 12px;
@@ -471,6 +493,12 @@ th { cursor: pointer; background: #f9fafb; }
 
 .tenant-ledger-table .arrears-toggle-button {
   white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .budget-filter-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {

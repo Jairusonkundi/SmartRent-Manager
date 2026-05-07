@@ -80,16 +80,35 @@ if ((string) ($_GET['ajax'] ?? '') === '1') {
 
 renderHeader('Budget');
 ?>
-<section class="card">
-    <form method="get" id="budgetYearFilter" class="control-bar filter-form">
+<section class="card budget-filter-card">
+    <form method="get" id="budgetFilterForm" class="control-bar filter-form budget-filter-row">
         <label>Year
             <input type="number" name="year" min="2000" max="2100" value="<?= $year ?>">
         </label>
-        <input type="hidden" name="view" value="<?= h($view) ?>">
-        <input type="hidden" name="month" value="<?= h($selectedMonth) ?>">
+        <label>View
+            <select name="view" id="budgetViewSelect">
+                <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                <option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option>
+            </select>
+        </label>
+        <label>Reference
+            <select name="month" id="budgetReferenceSelect">
+                <?php if ($view === 'quarterly'): ?>
+                    <?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?>
+                        <?php $quarterMonthKey = sprintf('%04d-%02d', $year, (($quarterNumber - 1) * 3) + 1); ?>
+                        <option value="<?= h($quarterMonthKey) ?>" <?= $selectedQuarter === $quarterNumber ? 'selected' : '' ?>>Q<?= $quarterNumber ?></option>
+                    <?php endfor; ?>
+                <?php else: ?>
+                    <?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?>
+                        <?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?>
+                        <option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option>
+                    <?php endfor; ?>
+                <?php endif; ?>
+            </select>
+        </label>
         <div class="control-actions">
-            <button type="submit">Apply Year</button>
-            <button type="button" class="button" onclick="resetFilters('budgetYearFilter','/public/budget.php')">Reset</button>
+            <button type="submit">Apply Filters</button>
+            <button type="button" class="button" onclick="resetFilters('budgetFilterForm','/public/budget.php')">Reset</button>
         </div>
     </form>
 </section>
@@ -120,36 +139,6 @@ renderHeader('Budget');
     </article>
 </section>
 <p class="budget-ytd-note">Annual totals reflect the full selected year from imported Excel records and do not change with period filters.</p>
-
-<section class="card analysis-filter-card">
-    <form method="get" id="budgetPeriodFilter" class="control-bar filter-form">
-        <input type="hidden" name="year" value="<?= $year ?>">
-        <label>View
-            <select name="view">
-                <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
-                <option value="quarterly" <?= $view === 'quarterly' ? 'selected' : '' ?>>Quarterly</option>
-            </select>
-        </label>
-        <label>Reference Month/Quarter
-            <select name="month" id="budgetReferenceSelect">
-                <?php if ($view === 'quarterly'): ?>
-                    <?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?>
-                        <?php $quarterMonthKey = sprintf('%04d-%02d', $year, (($quarterNumber - 1) * 3) + 1); ?>
-                        <option value="<?= h($quarterMonthKey) ?>" <?= $selectedQuarter === $quarterNumber ? 'selected' : '' ?>>Q<?= $quarterNumber ?></option>
-                    <?php endfor; ?>
-                <?php else: ?>
-                    <?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?>
-                        <?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?>
-                        <option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option>
-                    <?php endfor; ?>
-                <?php endif; ?>
-            </select>
-        </label>
-        <div class="control-actions">
-            <button type="submit">Apply Period</button>
-        </div>
-    </form>
-</section>
 
 <section class="card selected-period-title">
     <h3 id="analysisPeriodHeadline"><?= h($periodHeadline) ?></h3>

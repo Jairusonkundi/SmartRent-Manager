@@ -282,14 +282,13 @@ const addLoadingStates = () => {
 window.renderBudgetDashboard = drawBudget;
 
 const initBudgetFilters = () => {
-  const form = document.getElementById('budgetPeriodFilter');
+  const form = document.getElementById('budgetFilterForm');
   if (!form) return;
 
   const viewSelect = form.querySelector('select[name="view"]');
   const referenceSelect = document.getElementById('budgetReferenceSelect');
-  const headline = document.getElementById('analysisPeriodHeadline');
-  const selectedYear = Number(form.querySelector('input[name="year"]')?.value || new Date().getFullYear());
-  if (!viewSelect || !referenceSelect || !headline) return;
+  const yearInput = form.querySelector('input[name="year"]');
+  if (!viewSelect || !referenceSelect || !yearInput) return;
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -300,6 +299,7 @@ const initBudgetFilters = () => {
     if (mode === 'quarterly') {
       for (let quarter = 1; quarter <= 4; quarter += 1) {
         const option = document.createElement('option');
+        const selectedYear = Number(yearInput.value || new Date().getFullYear());
         option.value = `${selectedYear}-${String(((quarter - 1) * 3) + 1).padStart(2, '0')}`;
         option.textContent = `Q${quarter}`;
         referenceSelect.appendChild(option);
@@ -307,6 +307,7 @@ const initBudgetFilters = () => {
     } else {
       monthNames.forEach((name, index) => {
         const option = document.createElement('option');
+        const selectedYear = Number(yearInput.value || new Date().getFullYear());
         option.value = `${selectedYear}-${String(index + 1).padStart(2, '0')}`;
         option.textContent = name;
         referenceSelect.appendChild(option);
@@ -317,30 +318,16 @@ const initBudgetFilters = () => {
     referenceSelect.value = match ? priorValue : referenceSelect.options[0]?.value || '';
   };
 
-  const updateHeadline = () => {
-    const [yearValue, monthValue] = String(referenceSelect.value).split('-');
-    const monthIndex = Math.max(1, Number(monthValue || 1));
-    if (viewSelect.value === 'quarterly') {
-      const quarter = Math.ceil(monthIndex / 3);
-      headline.textContent = `Analysis for Q${quarter} ${yearValue || selectedYear}`;
-      return;
-    }
-    headline.textContent = `Analysis for ${monthNames[monthIndex - 1]} ${yearValue || selectedYear}`;
-  };
-
   renderReferenceOptions(viewSelect.value);
   const initialSelected = String(window.budgetData?.selectedMonth || '');
   if (initialSelected) {
     const exists = [...referenceSelect.options].some(option => option.value === initialSelected);
     if (exists) referenceSelect.value = initialSelected;
   }
-  updateHeadline();
 
   viewSelect.addEventListener('change', () => {
     renderReferenceOptions(viewSelect.value);
-    updateHeadline();
   });
-  referenceSelect.addEventListener('change', updateHeadline);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
