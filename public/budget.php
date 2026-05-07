@@ -30,9 +30,10 @@ if ($selectedMonth !== 'all') {
     $selectedDate = new DateTimeImmutable($selectedMonth . '-01');
 }
 $selectedQuarter = (int) ceil(((int) $selectedDate->format('n')) / 3);
+$selectedReference = $view === 'quarterly' ? sprintf('Q%d', $selectedQuarter) : $selectedDate->format('F');
 $periodHeadline = $view === 'quarterly'
-    ? sprintf('Analysis for Q%d %s', $selectedQuarter, $selectedDate->format('Y'))
-    : sprintf('Analysis for %s', $selectedDate->format('F Y'));
+    ? sprintf('Analysis for %s %s', $selectedReference, $selectedDate->format('Y'))
+    : sprintf('Analysis for %s %s', $selectedReference, $selectedDate->format('Y'));
 
 $periodStart = sprintf('%04d-01', $year);
 $periodEnd = sprintf('%04d-12', $year);
@@ -130,11 +131,18 @@ renderHeader('Budget');
             </select>
         </label>
         <label>Reference Month/Quarter
-            <select name="month">
-                <?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?>
-                    <?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?>
-                    <option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option>
-                <?php endfor; ?>
+            <select name="month" id="budgetReferenceSelect">
+                <?php if ($view === 'quarterly'): ?>
+                    <?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?>
+                        <?php $quarterMonthKey = sprintf('%04d-%02d', $year, (($quarterNumber - 1) * 3) + 1); ?>
+                        <option value="<?= h($quarterMonthKey) ?>" <?= $selectedQuarter === $quarterNumber ? 'selected' : '' ?>>Q<?= $quarterNumber ?></option>
+                    <?php endfor; ?>
+                <?php else: ?>
+                    <?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?>
+                        <?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?>
+                        <option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option>
+                    <?php endfor; ?>
+                <?php endif; ?>
             </select>
         </label>
         <div class="control-actions">
@@ -144,7 +152,7 @@ renderHeader('Budget');
 </section>
 
 <section class="card selected-period-title">
-    <h3><?= h($periodHeadline) ?></h3>
+    <h3 id="analysisPeriodHeadline"><?= h($periodHeadline) ?></h3>
 </section>
 <section class="cards metrics-selected">
     <article class="card metric metric-selected">
@@ -215,7 +223,10 @@ window.budgetData = {
         'totalYtdBudget' => $totalYtdBudget,
         'totalYtdCollection' => $totalPaid,
         'totalYtdArrears' => $totalOutstanding,
-    ], JSON_THROW_ON_ERROR) ?>
+    ], JSON_THROW_ON_ERROR) ?>,
+    selectedView: <?= json_encode($view, JSON_THROW_ON_ERROR) ?>,
+    selectedMonth: <?= json_encode($selectedMonth, JSON_THROW_ON_ERROR) ?>,
+    selectedReference: <?= json_encode($selectedReference, JSON_THROW_ON_ERROR) ?>
 };
 </script>
 

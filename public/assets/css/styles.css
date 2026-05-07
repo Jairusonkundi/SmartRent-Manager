@@ -255,6 +255,8 @@ th { cursor: pointer; background: #f9fafb; }
 .metrics-general .metric-general {
   background: linear-gradient(145deg, #1f2a44 0%, #374151 100%);
   color: #f8fafc;
+  padding: 12px 14px;
+  min-height: 96px;
 }
 
 .metrics-general .metric-label,
@@ -265,6 +267,8 @@ th { cursor: pointer; background: #f9fafb; }
 .metrics-selected .metric-selected {
   background: linear-gradient(145deg, #0b63ce 0%, #0ea5a8 100%);
   color: #f8fafc;
+  padding: 12px 14px;
+  min-height: 96px;
 }
 
 .metrics-selected .metric-label,
@@ -281,11 +285,14 @@ th { cursor: pointer; background: #f9fafb; }
 }
 
 .analysis-filter-card {
-  margin-top: 18px;
+  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 .selected-period-title {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
 .selected-period-title h3 {
@@ -294,6 +301,21 @@ th { cursor: pointer; background: #f9fafb; }
 
 .arrears-summary-cards {
   margin: 12px 0 18px;
+}
+
+.metrics-general,
+.metrics-selected {
+  margin-bottom: 10px;
+}
+
+.metrics-general .metric strong,
+.metrics-selected .metric strong {
+  font-size: 1.3rem;
+  line-height: 1.1;
+}
+
+.budget-ytd-note {
+  margin: 6px 0 10px;
 }
 
 .arrears-accordion-table > thead th {
