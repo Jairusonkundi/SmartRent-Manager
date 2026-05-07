@@ -469,7 +469,18 @@ th { cursor: pointer; background: #f9fafb; }
   font-size: .9rem;
 }
 
-#projectedFutureRentHint {
-  color: #cbd5e1;
-  font-size: .78rem;
+.metrics-general {
+  align-items: stretch;
+}
+
+.metrics-general .metric-general {
+  min-height: 138px;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+.budget-ytd-note {
+  margin: -6px 4px 16px;
+  color: var(--muted);
+  font-size: .86rem;
 }

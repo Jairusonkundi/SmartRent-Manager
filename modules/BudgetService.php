@@ -17,7 +17,6 @@ final class BudgetService
 
         $ytdCollection = 0.0;
         $ytdArrears = 0.0;
-        $projectedFutureRent = 0.0;
         foreach ($monthly as $row) {
             $monthKey = (string) ($row['month_key'] ?? '');
             if (substr($monthKey, 0, 4) !== (string) $year) {
@@ -31,8 +30,6 @@ final class BudgetService
             if ($monthKey <= $referenceMonth) {
                 $ytdCollection += $paid;
                 $ytdArrears += $outstanding;
-            } else {
-                $projectedFutureRent += $expected;
             }
         }
 
@@ -41,8 +38,7 @@ final class BudgetService
             'quarterly' => $quarterly,
             'total_ytd_collection' => $ytdCollection,
             'total_ytd_arrears' => $ytdArrears,
-            'projected_future_rent' => $projectedFutureRent,
-            'total_annual_budget' => $ytdCollection + $ytdArrears + $projectedFutureRent,
+            'total_ytd_budget' => $ytdCollection + $ytdArrears,
         ];
     }
 
