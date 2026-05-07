@@ -59,6 +59,14 @@ const drawDashboard = () => {
       data: {
         labels: distribution.map(row => row.status),
         datasets: [{ data: distribution.map(row => Number(row.total || 0)), backgroundColor: ['#198754', '#ffc107', '#dc3545'] }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom'
+          }
+        }
       }
     });
   }

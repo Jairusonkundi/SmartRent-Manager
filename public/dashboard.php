@@ -60,6 +60,7 @@ $periodTotals = $periodTotalsStmt->fetch() ?: ['total_expected' => 0, 'total_pai
 
 $totalExpected = (float) ($periodTotals['total_expected'] ?? 0.0);
 $totalPaid = (float) ($periodTotals['total_paid'] ?? 0.0);
+$accountsReceivable = max($totalExpected - $totalPaid, 0);
 $collectionEfficiency = $totalExpected > 0 ? round(($totalPaid / $totalExpected) * 100, 2) : 0.0;
 
 $occupancyStmt = $pdo->prepare(
@@ -98,7 +99,7 @@ $trendStmt = $pdo->prepare(
      GROUP BY p.billing_month
      ORDER BY p.billing_month ASC"
 );
-$trendStmt->execute(array_merge([sprintf('%04d-01', $year), min(sprintf('%04d-12', $year), $currentMonth)], $propertyParams));
+$trendStmt->execute(array_merge([sprintf('%04d-01', $year), sprintf('%04d-12', $year)], $propertyParams));
 $trend = $trendStmt->fetchAll() ?: [];
 
 $distributionStmt = $pdo->prepare(
@@ -132,18 +133,19 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
         <label>Reference
             <select name="month"><?php if ($view === 'quarterly'): ?><?php for ($quarterNumber = 1; $quarterNumber <= 4; $quarterNumber++): ?><?php $quarterMonthKey = sprintf('%04d-%02d', $year, (($quarterNumber - 1) * 3) + 1); ?><option value="<?= h($quarterMonthKey) ?>" <?= $selectedMonth === $quarterMonthKey ? 'selected' : '' ?>>Q<?= $quarterNumber ?></option><?php endfor; ?><?php else: ?><?php for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++): ?><?php $monthKey = sprintf('%04d-%02d', $year, $monthNumber); ?><option value="<?= h($monthKey) ?>" <?= $selectedMonth === $monthKey ? 'selected' : '' ?>><?= h(date('F', strtotime($monthKey . '-01'))) ?></option><?php endfor; ?><?php endif; ?></select>
         </label>
-        <div class="control-actions"><button type="submit">Apply Filters</button><button type="button" class="button" onclick="resetFilters('dashboardFilters','/public/dashboard.php')">Reset</button></div>
+        <div class="control-actions"><button type="submit">Search</button></div>
     </form>
 </section>
 <?php if ($isFuturePeriod && $futureBillingStartDate !== null): ?><section class="card"><p>Data for this period is projected. Official billing starts on <?= h($futureBillingStartDate) ?>.</p></section><?php endif; ?>
-<section class="cards">
+<section class="cards dashboard-kpi-grid">
     <article class="card metric occupancy-widget"><span class="metric-label">Occupancy Rate:</span><strong><span class="card-value"><?= number_format($occupancyRate, 2) ?>% Occupancy (<?= $occupiedUnits ?>/<?= $totalUnits ?>)</span></strong></article>
     <article class="card metric paid"><span class="metric-label">Collection Efficiency:</span><strong><span class="card-value"><?= number_format($collectionEfficiency, 2) ?>%</span></strong></article>
     <article class="card metric unpaid"><span class="metric-label">Late Payment Alert (&gt; 10th):</span><strong><span class="card-value"><?= $latePaymentAlert ?></span></strong></article>
+    <article class="card metric unpaid"><span class="metric-label">Accounts Receivable:</span><strong><span class="card-value">KSh <?= number_format($accountsReceivable, 2) ?></span></strong></article>
 </section>
-<section class="charts-grid">
+<section class="charts-grid dashboard-charts-grid">
     <article class="card"><h3>Revenue Trend (12 Months)</h3><canvas id="incomeTrend"></canvas></article>
-    <article class="card"><h3>Payment Status Distribution</h3><div class="status-legend compact"><span><i class="legend-dot legend-paid"></i>Paid</span><span><i class="legend-dot legend-partial"></i>Partial</span><span><i class="legend-dot legend-unpaid"></i>Unpaid</span></div><canvas id="statusPie"></canvas></article>
+    <article class="card compact-pie-card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
 </section>
 <script>
 window.dashboardData = { trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>, distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?> };
