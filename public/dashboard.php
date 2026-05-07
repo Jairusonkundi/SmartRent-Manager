@@ -115,18 +115,6 @@ $distributionStmt = $pdo->prepare(
 $distributionStmt->execute(array_merge([$periodStart, $periodEnd], $propertyParams));
 $distribution = $distributionStmt->fetch() ?: ['paid_total' => 0, 'arrears_total' => 0];
 
-$latestImports = [];
-try {
-    $latestImports = $pdo->query(
-        "SELECT created_at, records_processed
-         FROM import_logs
-         ORDER BY created_at DESC
-         LIMIT 5"
-    )->fetchAll() ?: [];
-} catch (Throwable $exception) {
-    $latestImports = [];
-}
-
 $latestBillingMonth = $pdo->query('SELECT MAX(billing_month) FROM payments')->fetchColumn();
 $missingTenantDataCount = 0;
 if (is_string($latestBillingMonth) && $latestBillingMonth !== '') {
@@ -154,7 +142,6 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <?php if (!$hasPayments): ?>
 <section class="card"><h3>Welcome! Please upload your CSV to begin</h3><p>Import your wide-format rent collection data to unlock dashboard metrics, arrears, and reports.</p><a class="button-link" href="/public/upload_csv.php">Upload CSV</a></section>
 <?php renderFooter(); return; endif; ?>
-<section class="card upload-cta"><a class="button-link" href="/public/upload_csv.php">Upload Monthly Data</a></section>
 <section class="card budget-filter-card">
     <form method="get" id="dashboardFilters" class="control-bar filter-form budget-filter-row">
         <label>Property
@@ -171,12 +158,11 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
             <button type="submit">Search</button>
             <button type="button" class="button button-secondary" onclick="window.location.href='/public/dashboard.php';">Reset</button>
         </div>
+        <div class="dashboard-data-actions">
+            <a class="button-link action-upload" href="/public/upload_csv.php">Upload Data</a>
+            <a class="button-link action-download" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">Download Data</a>
+        </div>
     </form>
-</section>
-<section class="card dashboard-download-card">
-    <h4>Data Management</h4>
-    <p>Download source records for local audit and reconciliation.</p>
-    <a class="button-link" href="/public/download_data.php?property_id=<?= urlencode($propertyFilter) ?>&year=<?= $year ?>&view=<?= urlencode($view) ?>&month=<?= urlencode($selectedMonth) ?>">Download Source Data</a>
 </section>
 <?php if ($missingTenantDataCount > 0): ?>
 <section class="card subtle-alert-card">
@@ -193,24 +179,6 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 <section class="charts-grid dashboard-charts-grid">
     <article class="card"><h3>Revenue Trend (Year-to-Date)</h3><canvas id="incomeTrend"></canvas></article>
     <article class="card compact-pie-card"><h3>Payment Status Distribution</h3><canvas id="statusPie"></canvas></article>
-</section>
-<section class="card latest-imports-card">
-    <h3>Latest Activity</h3>
-    <div class="data-management-card">
-        <p>Download the currently imported data for offline accounting edits and re-upload when ready.</p>
-    </div>
-    <?php if ($latestImports === []): ?>
-        <p class="muted-text">No import activity has been recorded yet.</p>
-    <?php else: ?>
-        <ul class="latest-import-list">
-            <?php foreach ($latestImports as $importLog): ?>
-                <li>
-                    <span><?= h(date('M j, Y g:i A', strtotime((string) $importLog['created_at']))) ?></span>
-                    <strong><?= number_format((int) ($importLog['records_processed'] ?? 0)) ?> records</strong>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    <?php endif; ?>
 </section>
 <script>
 window.dashboardData = { trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>, distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?> };
