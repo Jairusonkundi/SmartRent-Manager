@@ -47,6 +47,64 @@ function getFlash(): ?array
     return null;
 }
 
+
+function csrfToken(): string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    if (empty($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['csrf_token'];
+}
+
+function verifyCsrfToken(?string $token): bool
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    return isset($_SESSION['csrf_token'])
+        && is_string($_SESSION['csrf_token'])
+        && is_string($token)
+        && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+function safeRedirectPath(string $path, string $fallback = '/public/dashboard.php'): string
+{
+    $parsedPath = parse_url($path, PHP_URL_PATH);
+    if (!is_string($parsedPath) || $parsedPath === '') {
+        return $fallback;
+    }
+
+    $allowedPaths = [
+        '/public/dashboard.php',
+        '/public/upload_csv.php',
+    ];
+
+    if (!in_array($parsedPath, $allowedPaths, true)) {
+        return $fallback;
+    }
+
+    $query = parse_url($path, PHP_URL_QUERY);
+    if (!is_string($query) || $query === '') {
+        return $parsedPath;
+    }
+
+    parse_str($query, $queryParams);
+    $safeQueryParams = [];
+    foreach (['property_id', 'year', 'view', 'month'] as $allowedQueryParam) {
+        if (isset($queryParams[$allowedQueryParam]) && is_scalar($queryParams[$allowedQueryParam])) {
+            $safeQueryParams[$allowedQueryParam] = (string) $queryParams[$allowedQueryParam];
+        }
+    }
+
+    return $parsedPath . ($safeQueryParams !== [] ? '?' . http_build_query($safeQueryParams) : '');
+}
+
 function getPaginationState(array $allowedLimits = [5, 10, 15, 20], int $defaultLimit = 10): array
 {
     $page = max(1, (int) ($_GET['page'] ?? 1));
