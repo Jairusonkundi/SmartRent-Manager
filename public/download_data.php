@@ -30,12 +30,16 @@ if ($downloadType === 'raw') {
 
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+    header('Content-Transfer-Encoding: binary');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
     header('Content-Length: ' . (string) filesize($rawUploadPath));
     readfile($rawUploadPath);
     exit;
 }
 
-$year = (int) ($_GET['year'] ?? date('Y'));
+$year = max(2000, min(2100, (int) ($_GET['year'] ?? date('Y'))));
 $selectedMonthInput = (string) ($_GET['month'] ?? sprintf('%04d-%02d', $year, (int) date('n')));
 $selectedMonth = sprintf('%04d-%02d', $year, (int) date('n'));
 if (preg_match('/^(\d{4})-(\d{2})$/', $selectedMonthInput, $matches) === 1) {
@@ -48,8 +52,9 @@ if (preg_match('/^(\d{4})-(\d{2})$/', $selectedMonthInput, $matches) === 1) {
 $view = (string) ($_GET['view'] ?? 'monthly');
 $view = in_array($view, ['monthly', 'quarterly'], true) ? $view : 'monthly';
 $propertyFilter = (string) ($_GET['property_id'] ?? 'all');
-$propertyWhere = $propertyFilter !== 'all' ? ' AND pr.id = ?' : '';
-$propertyParams = $propertyFilter !== 'all' ? [(int) $propertyFilter] : [];
+$propertyId = filter_var($propertyFilter, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$propertyWhere = $propertyFilter !== 'all' && $propertyId !== false ? ' AND pr.id = ?' : '';
+$propertyParams = $propertyFilter !== 'all' && $propertyId !== false ? [(int) $propertyId] : [];
 
 $periodStart = $selectedMonth;
 $periodEnd = $selectedMonth;
@@ -74,9 +79,14 @@ $stmt = $pdo->prepare(
 $stmt->execute(array_merge([$periodStart, $periodEnd], $propertyParams));
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-$filename = 'smartrent-current-data-' . date('Y-m-d') . '.csv';
+$periodLabel = $periodStart === $periodEnd ? $periodStart : $periodStart . '_to_' . $periodEnd;
+$filename = 'smartrent-data-' . $periodLabel . '-' . date('Y-m-d') . '.csv';
 header('Content-Type: text/csv; charset=utf-8');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
+header('Content-Transfer-Encoding: binary');
+header('X-Content-Type-Options: nosniff');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 $output = fopen('php://output', 'wb');
 if ($output === false) {

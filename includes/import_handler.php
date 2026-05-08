@@ -11,6 +11,7 @@ require_once __DIR__ . '/../modules/PropertyService.php';
 requireAuth();
 
 $isAjaxRequest = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+$returnTo = safeRedirectPath((string) ($_POST['return_to'] ?? ($_SERVER['HTTP_REFERER'] ?? '/public/dashboard.php')));
 
 $respond = static function (string $status, string $message, string $redirect) use ($isAjaxRequest): void {
     if ($isAjaxRequest) {
@@ -32,20 +33,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $respond('error', 'Invalid request method.', '/public/upload_csv.php');
 }
 
+if (!verifyCsrfToken(isset($_POST['csrf_token']) ? (string) $_POST['csrf_token'] : null)) {
+    $respond('error', 'Your session expired. Please refresh the page and try again.', $returnTo);
+}
+
 if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-    $respond('error', 'Please select a valid CSV file to upload.', '/public/upload_csv.php');
+    $respond('error', 'Please select a valid CSV file to upload.', $returnTo);
 }
 
 $originalFileName = (string) ($_FILES['csv_file']['name'] ?? 'uploaded-file.csv');
 $storageDir = __DIR__ . '/../storage/raw_uploads';
 if (!is_dir($storageDir) && !mkdir($storageDir, 0775, true) && !is_dir($storageDir)) {
-    $respond('error', 'Unable to prepare upload storage.', '/public/upload_csv.php');
+    $respond('error', 'Unable to prepare upload storage.', $returnTo);
 }
 $safeOriginalFileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($originalFileName)) ?: 'uploaded-file.csv';
 $rawUploadPath = $storageDir . '/latest-upload.csv';
 $rawUploadMetaPath = $storageDir . '/latest-upload.json';
 if (!move_uploaded_file($_FILES['csv_file']['tmp_name'], $rawUploadPath)) {
-    $respond('error', 'Unable to store the uploaded file.', '/public/upload_csv.php');
+    $respond('error', 'Unable to store the uploaded file.', $returnTo);
 }
 file_put_contents(
     $rawUploadMetaPath,
@@ -62,13 +67,13 @@ $csvPath = $rawUploadPath;
 $handle = fopen($csvPath, 'rb');
 
 if ($handle === false) {
-    $respond('error', 'Unable to read the uploaded file.', '/public/upload_csv.php');
+    $respond('error', 'Unable to read the uploaded file.', $returnTo);
 }
 
 $headers = fgetcsv($handle);
 if ($headers === false) {
     fclose($handle);
-    $respond('error', 'The CSV appears to be empty.', '/public/upload_csv.php');
+    $respond('error', 'The CSV appears to be empty.', $returnTo);
 }
 
 $requiredHeaders = [
@@ -108,14 +113,14 @@ foreach ($headers as $idx => $header) {
 foreach ($requiredHeaders as $requiredHeader) {
     if (!array_key_exists($requiredHeader, $headerMap)) {
         fclose($handle);
-        $respond('error', "Missing required CSV header: {$requiredHeader}", '/public/upload_csv.php');
+        $respond('error', "Missing required CSV header: {$requiredHeader}", $returnTo);
     }
 }
 
 foreach (array_keys($monthColumnMap) as $requiredHeader) {
     if (!array_key_exists($requiredHeader, $headerMap)) {
         fclose($handle);
-        $respond('error', "Missing required CSV header: {$requiredHeader}", '/public/upload_csv.php');
+        $respond('error', "Missing required CSV header: {$requiredHeader}", $returnTo);
     }
 }
 
@@ -227,8 +232,8 @@ try {
     }
 
     fclose($handle);
-    $respond('error', 'Error importing data.', '/public/upload_csv.php');
+    $respond('error', 'Error importing data.', $returnTo);
 }
 
 fclose($handle);
-$respond('success', 'Data imported successfully!', '/public/dashboard.php');
+$respond('success', 'Data imported successfully!', $returnTo);

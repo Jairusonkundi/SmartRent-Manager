@@ -138,6 +138,14 @@ if (is_string($latestBillingMonth) && $latestBillingMonth !== '') {
 
 renderHeader('Dashboard');
 $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
+$downloadParams = [
+    'property_id' => $propertyFilter,
+    'year' => $year,
+    'view' => $view,
+    'month' => $selectedMonth,
+];
+$downloadUrl = '/public/download_data.php?' . http_build_query($downloadParams);
+$returnTo = '/public/dashboard.php?' . http_build_query($downloadParams);
 ?>
 <?php if (!$hasPayments): ?>
 <section class="card"><h3>Welcome! Please upload your CSV to begin</h3><p>Import your wide-format rent collection data to unlock dashboard metrics, arrears, and reports.</p><a class="button-link" href="/public/upload_csv.php">Upload CSV</a></section>
@@ -216,14 +224,16 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
     <div class="data-management-actions">
         <div class="data-management-item">
             <form method="post" action="/includes/import_handler.php" enctype="multipart/form-data" class="inline-upload-form">
+                <input type="hidden" name="csrf_token" value="<?= h(csrfToken()) ?>">
+                <input type="hidden" name="return_to" value="<?= h($returnTo) ?>">
                 <input id="dashboard_csv_file" name="csv_file" type="file" accept=".csv,text/csv" required hidden>
-                <button type="button" class="button-link action-upload" onclick="document.getElementById('dashboard_csv_file').click();">UPLOAD CSV FILE</button>
+                <button id="dashboard_upload_csv" type="button" class="button-link action-upload">UPLOAD CSV FILE</button>
             </form>
             <p>Upload the raw CSV file here for the system to process and perform financial analysis.</p>
         </div>
         <div class="data-management-item">
-            <button id="dashboard_download_csv" type="button" class="button-link action-download">DOWNLOAD CSV FILE</button>
-            <p>Download the original uploaded file to make edits or manual corrections.</p>
+            <a id="dashboard_download_csv" href="<?= h($downloadUrl) ?>" class="button-link action-download">DOWNLOAD CSV FILE</a>
+            <p>Download a CSV export using the active Property, Year, and Period filters.</p>
         </div>
     </div>
 </section>
@@ -231,8 +241,7 @@ $hasPayments = $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn() > 0;
 window.dashboardData = { trend: <?= json_encode($trend, JSON_THROW_ON_ERROR) ?>, distribution: <?= json_encode($distribution, JSON_THROW_ON_ERROR) ?> };
 document.addEventListener('DOMContentLoaded', () => {
     const csvInput = document.getElementById('dashboard_csv_file');
-    const downloadButton = document.getElementById('dashboard_download_csv');
-    const state = window.dashboardState = window.dashboardState || { uploadedFile: null };
+    const uploadButton = document.getElementById('dashboard_upload_csv');
 
     const collectionEfficiencyValue = document.getElementById('collection_efficiency_value');
     const accountsReceivableValue = document.getElementById('accounts_receivable_value');
@@ -284,7 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
         csvInput.addEventListener('change', async () => {
             if (!csvInput.files || csvInput.files.length === 0) return;
             const [file] = csvInput.files;
-            state.uploadedFile = file;
 
             try {
                 await parseAndApplyMetrics(file);
@@ -296,22 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (downloadButton) {
-        downloadButton.addEventListener('click', () => {
-            const file = state.uploadedFile;
-            if (!file) {
-                window.alert('No raw CSV file is available yet.');
-                return;
-            }
-
-            const blobUrl = URL.createObjectURL(file);
-            const anchor = document.createElement('a');
-            anchor.href = blobUrl;
-            anchor.download = file.name || 'raw-upload.csv';
-            document.body.appendChild(anchor);
-            anchor.click();
-            anchor.remove();
-            URL.revokeObjectURL(blobUrl);
+    if (uploadButton && csvInput) {
+        uploadButton.addEventListener('click', () => {
+            csvInput.click();
         });
     }
 });

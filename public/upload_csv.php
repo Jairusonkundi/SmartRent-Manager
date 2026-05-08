@@ -14,6 +14,8 @@ renderHeader('Upload Monthly Data');
     <p class="upload-help">Upload your monthly property CSV file to auto-create properties, units, tenants, and payments.</p>
     <div id="upload-feedback" aria-live="polite"></div>
     <form id="csv-upload-form" action="/includes/import_handler.php" method="post" enctype="multipart/form-data" class="upload-form">
+        <input type="hidden" name="csrf_token" value="<?= h(csrfToken()) ?>">
+        <input type="hidden" name="return_to" value="/public/dashboard.php">
         <label for="csv_file">CSV File</label>
         <input id="csv_file" name="csv_file" type="file" accept=".csv,text/csv" required>
         <button type="submit">Upload</button>
