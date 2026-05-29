@@ -21,15 +21,25 @@ if (!$isAllLimit && !in_array($limit, $allowedLimits, true)) {
     $limit = 10;
 }
 
-$search = trim((string) ($_GET['search'] ?? ''));
+$search         = trim((string) ($_GET['search']      ?? ''));
 $propertyFilter = (string) ($_GET['property_id'] ?? ($_SESSION['global_property_filter'] ?? 'all'));
 $_SESSION['global_property_filter'] = $propertyFilter;
-$propertyId = $propertyFilter !== 'all' ? (int) $propertyFilter : null;
+$propertyId     = $propertyFilter !== 'all' ? (int) $propertyFilter : null;
+
+$fromMonth = trim((string) ($_GET['from_month'] ?? ''));
+$toMonth   = trim((string) ($_GET['to_month']   ?? ''));
+// Validate YYYY-MM format; silently discard invalid values
+if (!preg_match('/^\d{4}-\d{2}$/', $fromMonth)) { $fromMonth = ''; }
+if (!preg_match('/^\d{4}-\d{2}$/', $toMonth))   { $toMonth   = ''; }
+// Ensure from <= to when both are set
+if ($fromMonth !== '' && $toMonth !== '' && $fromMonth > $toMonth) {
+    [$fromMonth, $toMonth] = [$toMonth, $fromMonth];
+}
 
 $properties = $pdo->query('SELECT id, name FROM properties ORDER BY name')->fetchAll();
 
 $paymentService = new PaymentService();
-$allArrears = $paymentService->arrearsSummaryByTenant($search, $propertyId);
+$allArrears = $paymentService->arrearsSummaryByTenant($search, $propertyId, $fromMonth, $toMonth);
 $totalRecords = count($allArrears);
 $portfolioTotal = 0.0;
 $oldestDebtMonth = null;
@@ -98,7 +108,7 @@ $highestArrears = (float) ($allArrears[0]['total_arrears'] ?? 0);
             </select>
         </label>
         <label>Search
-            <input type="text" id="arrearsSearchInput" name="search" value="<?= h($search) ?>" placeholder="Tenant, unit, or property">
+            <input type="text" id="arrearsSearchInput" name="search" value="<?= h($search) ?>" placeholder="Search name, phone, email, unit…">
         </label>
         <label>Property
             <select name="property_id">
@@ -110,6 +120,12 @@ $highestArrears = (float) ($allArrears[0]['total_arrears'] ?? 0);
                 <?php endforeach; ?>
             </select>
         </label>
+        <label>From Month
+            <input type="month" name="from_month" value="<?= h($fromMonth) ?>">
+        </label>
+        <label>To Month
+            <input type="month" name="to_month" value="<?= h($toMonth) ?>" max="<?= date('Y-m') ?>">
+        </label>
         <div class="control-actions">
             <button type="submit">Search</button>
             <button type="button" class="button" onclick="resetFilters('arrearsFilters','/public/arrears.php')">Clear Filters</button>
@@ -117,7 +133,7 @@ $highestArrears = (float) ($allArrears[0]['total_arrears'] ?? 0);
     </form>
     <p>Showing <?= $currentCount ?> records | Total Found: <?= $totalRecords ?></p>
     <?php if ($totalRecords === 0): ?>
-        <div class="alert">Welcome! Please upload your CSV to begin.</div>
+        <div class="alert">No arrears found for the selected filters. Add properties, tenants, and post payments to begin.</div>
     <?php else: ?>
     <div class="table-responsive">
     <table class="arrears-accordion-table">
@@ -177,7 +193,7 @@ $highestArrears = (float) ($allArrears[0]['total_arrears'] ?? 0);
             clearTimeout(timeoutId);
             timeoutId = setTimeout(function () {
                 form.submit();
-            }, 250);
+            }, 300);
         });
     }());
     (function () {

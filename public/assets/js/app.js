@@ -116,7 +116,15 @@ const initDashboardFilters = () => {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const buildOptions = mode => {
     const selectedYear = Number(yearInput.value || new Date().getFullYear());
+    const prevValue = referenceSelect.value;
     referenceSelect.innerHTML = '';
+
+    // "All" option — shows year-to-date KPIs
+    const allOpt = document.createElement('option');
+    allOpt.value = 'all';
+    allOpt.textContent = mode === 'quarterly' ? 'All Quarters' : 'All Months';
+    referenceSelect.appendChild(allOpt);
+
     if (mode === 'quarterly') {
       for (let quarter = 1; quarter <= 4; quarter += 1) {
         const option = document.createElement('option');
@@ -132,11 +140,14 @@ const initDashboardFilters = () => {
         referenceSelect.appendChild(option);
       });
     }
+
+    // Restore previous selection when it still exists (preserves 'all' across year changes)
+    const prevExists = [...referenceSelect.options].some(o => o.value === prevValue);
+    referenceSelect.value = prevExists ? prevValue : referenceSelect.options[0].value;
   };
 
   viewSelect.addEventListener('change', () => {
     buildOptions(viewSelect.value);
-    referenceSelect.selectedIndex = 0;
   });
 
   yearInput.addEventListener('change', () => buildOptions(viewSelect.value));

@@ -20,31 +20,41 @@ use Dompdf\Dompdf;
 $month = $_GET['month'] ?? date('Y-m-01');
 $pdo = Database::connection();
 $billingMonth = date('Y-m', strtotime($month));
+// Group by tenant so multiple payment rows in the same month are collapsed correctly.
 $stmt = $pdo->prepare(
     "SELECT t.name,
-            p.amount_expected AS expected_rent,
-            p.amount_paid AS paid,
-            p.amount_expected - p.amount_paid AS outstanding
+            SUM(p.amount_expected)                                              AS expected_rent,
+            SUM(p.amount_paid)                                                  AS paid,
+            GREATEST(SUM(p.amount_expected) - SUM(p.amount_paid), 0)           AS outstanding
      FROM payments p
      JOIN tenants t ON t.id = p.tenant_id
      WHERE p.billing_month = ?
+     GROUP BY t.id, t.name
      ORDER BY t.name"
 );
 $stmt->execute([$billingMonth]);
 $rows = $stmt->fetchAll();
 
+// Totals via per-tenant subquery so overpayments don't cancel out other tenants' arrears.
 $totalsStmt = $pdo->prepare(
-    'SELECT
-        COALESCE(SUM(amount_expected), 0) AS total_expected,
-        COALESCE(SUM(amount_paid), 0) AS total_paid
-     FROM payments
-     WHERE billing_month = ?'
+    "SELECT
+         COALESCE(SUM(m.expected), 0)                        AS total_expected,
+         COALESCE(SUM(m.paid), 0)                            AS total_paid,
+         COALESCE(SUM(GREATEST(m.expected - m.paid, 0)), 0)  AS total_outstanding
+     FROM (
+         SELECT tenant_id,
+                SUM(amount_expected) AS expected,
+                SUM(amount_paid)     AS paid
+         FROM payments
+         WHERE billing_month = ?
+         GROUP BY tenant_id
+     ) m"
 );
 $totalsStmt->execute([$billingMonth]);
-$totals = $totalsStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0];
-$totalExpected = (float) ($totals['total_expected'] ?? 0);
-$totalPaid = (float) ($totals['total_paid'] ?? 0);
-$totalOutstanding = max($totalExpected - $totalPaid, 0);
+$totals = $totalsStmt->fetch() ?: ['total_expected' => 0, 'total_paid' => 0, 'total_outstanding' => 0];
+$totalExpected    = (float) ($totals['total_expected']    ?? 0);
+$totalPaid        = (float) ($totals['total_paid']        ?? 0);
+$totalOutstanding = (float) ($totals['total_outstanding'] ?? 0);
 
 $vacancyStmt = $pdo->prepare(
     "SELECT

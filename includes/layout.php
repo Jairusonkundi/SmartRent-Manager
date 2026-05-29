@@ -27,9 +27,13 @@ function renderHeader(string $title): void
         <h1>SmartRent</h1>
         <nav>
             <a class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>" href="/public/dashboard.php">Dashboard</a>
-            <a class="<?= in_array($currentPage, ['tenant_ledger.php', 'tenants.php', 'payments.php'], true) ? 'active' : '' ?>" href="/public/tenant_ledger.php">Tenant Ledger</a>
-            <a class="<?= $currentPage === 'budget.php' ? 'active' : '' ?>" href="/public/budget.php">Budget</a>
+            <a class="<?= $currentPage === 'manage_properties.php' ? 'active' : '' ?>" href="/public/manage_properties.php">Properties</a>
+            <a class="<?= $currentPage === 'manage_tenants.php' ? 'active' : '' ?>" href="/public/manage_tenants.php">Tenants</a>
+            <a class="<?= $currentPage === 'post_payment.php' ? 'active' : '' ?>" href="/public/post_payment.php">Post Payment</a>
+            <a class="<?= $currentPage === 'rent_collection.php' ? 'active' : '' ?>" href="/public/rent_collection.php">Rent Collection</a>
             <a class="<?= $currentPage === 'arrears.php' ? 'active' : '' ?>" href="/public/arrears.php">Arrears</a>
+            <a class="<?= $currentPage === 'expenses.php' ? 'active' : '' ?>" href="/public/expenses.php">Expenses</a>
+            <a class="<?= $currentPage === 'reports.php' ? 'active' : '' ?>" href="/public/reports.php">Budget and Reports</a>
             <a href="/public/logout.php">Logout</a>
         </nav>
     </aside>

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-function h(?string $value): string
+function h(mixed $value): string
 {
-    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
 function monthStart(string $month): string

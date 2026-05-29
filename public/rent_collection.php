@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-// Renamed to rent_collection.php — redirect permanently.
-header('Location: /public/rent_collection.php' . (isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== '' ? '?' . $_SERVER['QUERY_STRING'] : ''), true, 301);
-exit;
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/layout.php';
+require_once __DIR__ . '/../modules/RentCollectionService.php';
 
 requireAuth();
 $year = (int) ($_GET['year'] ?? date('Y'));
@@ -29,7 +30,7 @@ $currentQuarter = (int) ceil(((int) date('n')) / 3);
 $isFuturePeriod = $selectedMonth !== 'all' && $selectedMonth > $currentMonth;
 $futureBillingStartDate = $isFuturePeriod ? date('F j, Y', strtotime($selectedMonth . '-01')) : null;
 
-$service = new BudgetService();
+$service = new RentCollectionService();
 $budgetData = $service->dashboardData($year, 'all');
 $monthly = $budgetData['monthly'];
 $quarterly = $budgetData['quarterly'];
@@ -86,7 +87,7 @@ if ((string) ($_GET['ajax'] ?? '') === '1') {
     exit;
 }
 
-renderHeader('Budget');
+renderHeader('Rent Collection');
 ?>
 <section class="card budget-filter-card">
     <form method="get" id="budgetFilterForm" class="control-bar filter-form budget-filter-row">
@@ -116,7 +117,7 @@ renderHeader('Budget');
         </label>
         <div class="control-actions">
             <button type="submit">Apply Filters</button>
-            <button type="button" class="button" onclick="resetFilters('budgetFilterForm','/public/budget.php')">Reset</button>
+            <button type="button" class="button" onclick="resetFilters('budgetFilterForm','/public/rent_collection.php')">Reset</button>
         </div>
     </form>
 </section>
@@ -167,7 +168,7 @@ renderHeader('Budget');
     </article>
 </section>
 <section class="card">
-    <h3>Monthly Budget Breakdown (<?= $year ?>)</h3>
+    <h3>Monthly Breakdown (<?= $year ?>)</h3>
     <table id="monthlyBreakdownTable" class="sortable budget-monthly-breakdown">
         <thead><tr><th>Month</th><th>Expected</th><th>Paid</th><th>Outstanding</th></tr></thead>
         <tbody>

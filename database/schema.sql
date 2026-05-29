@@ -55,6 +55,7 @@ CREATE TABLE tenants (
     tenant_phone VARCHAR(20) DEFAULT NULL,
     tenant_email VARCHAR(100) DEFAULT NULL,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    credit_balance DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'KSH — accumulated overpayment credit',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_tenants_name (name),
@@ -104,7 +105,7 @@ CREATE TABLE payments (
     month DATE NOT NULL,
     collection_status ENUM('Paid','Partial','Unpaid') NOT NULL DEFAULT 'Unpaid',
     payment_status ENUM('On Time','Late') NOT NULL DEFAULT 'On Time',
-    payment_channel ENUM('bank_transfer','cash','cheque') NOT NULL DEFAULT 'bank_transfer',
+    payment_channel ENUM('bank_transfer','cash','cheque','credit_applied') NOT NULL DEFAULT 'bank_transfer',
     reference_no VARCHAR(80) DEFAULT NULL,
     recorded_by BIGINT UNSIGNED DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -132,14 +133,20 @@ ALTER TABLE payments
 CREATE TABLE expenses (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     property_id BIGINT UNSIGNED NOT NULL,
-    category VARCHAR(80) NOT NULL,
-    amount DECIMAL(12,2) NOT NULL COMMENT 'KSH',
-    date DATE NOT NULL,
-    note VARCHAR(255) DEFAULT NULL,
+    category_name VARCHAR(120) NOT NULL,
+    description TEXT DEFAULT NULL,
+    amount DECIMAL(15,2) NOT NULL COMMENT 'KSH',
+    status ENUM('Requisition Pending','Approved','Disbursed/Paid') NOT NULL DEFAULT 'Requisition Pending',
+    cheque_number VARCHAR(80) DEFAULT NULL,
+    expense_date DATE NOT NULL,
+    reference_period VARCHAR(20) DEFAULT NULL,
+    created_by BIGINT UNSIGNED DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_expenses_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
-    KEY idx_expenses_property_date (property_id, date),
-    KEY idx_expenses_category (category)
+    CONSTRAINT fk_expenses_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    KEY idx_expenses_property_date (property_id, expense_date),
+    KEY idx_expenses_category_name (category_name),
+    KEY idx_expenses_status (status)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS import_logs (
@@ -149,3 +156,12 @@ CREATE TABLE IF NOT EXISTS import_logs (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_import_logs_created_at (created_at)
 ) ENGINE=InnoDB;
+
+-- ── Idempotent migrations for existing deployments ────────────────────────────
+ALTER TABLE tenants
+    ADD COLUMN IF NOT EXISTS credit_balance DECIMAL(12,2) NOT NULL DEFAULT 0.00
+        COMMENT 'KSH — accumulated overpayment credit';
+
+ALTER TABLE payments
+    MODIFY COLUMN payment_channel
+        ENUM('bank_transfer','cash','cheque','credit_applied') NOT NULL DEFAULT 'bank_transfer';

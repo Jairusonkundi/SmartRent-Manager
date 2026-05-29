@@ -115,4 +115,4 @@ Then use:
    ```bash
    php -S localhost:8000 -t .
    ```
-4. Open `http://localhost:8000/public/login.php`.
+4. Open http://localhost:8000/public/login.php``.

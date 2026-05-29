@@ -56,10 +56,18 @@ final class DashboardService
         $paidStmt->execute([$billingMonth]);
         $totalPaid = (float) ($paidStmt->fetchColumn() ?: 0);
 
+        // Per-(tenant, billing_month) subquery so multi-row payments are aggregated
+        // before comparing; GREATEST prevents overpaid months from netting arrears.
         $arrearsStmt = $pdo->prepare(
-            'SELECT COALESCE(SUM(amount_expected - amount_paid), 0)
-             FROM payments
-             WHERE amount_paid < amount_expected'
+            "SELECT COALESCE(SUM(GREATEST(m.expected - m.paid, 0)), 0) AS arrears
+             FROM (
+                 SELECT tenant_id, billing_month,
+                        SUM(amount_expected) AS expected,
+                        SUM(amount_paid)     AS paid
+                 FROM payments
+                 WHERE billing_month <= DATE_FORMAT(CURRENT_DATE, '%Y-%m')
+                 GROUP BY tenant_id, billing_month
+             ) m"
         );
         $arrearsStmt->execute();
 
